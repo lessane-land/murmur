@@ -121,6 +121,39 @@ struct SettingsView: View {
             .buttonStyle(.plain)
             .disabled(isPreparingShare)
 
+            Menu {
+                ForEach(PartnerLocation.options) { option in
+                    Button(option.city) {
+                        profile.partnerCity = option.city
+                        profile.partnerTimeZoneID = option.timeZoneID
+                    }
+                }
+            } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "location.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(MurmurColor.accent)
+                        .frame(width: 44, height: 44)
+                        .background(MurmurColor.surfaceHi, in: Circle())
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("\(profile.partnerName.isEmpty ? "Partner" : profile.partnerName) is in \(profile.partnerCity)")
+                            .font(MurmurFont.rounded(15, weight: .semibold))
+                            .foregroundStyle(MurmurColor.inkPrimary)
+                        Text("\(profile.partnerLocalTime) · \(profile.partnerOffsetLabel)")
+                            .font(MurmurFont.rounded(12))
+                            .foregroundStyle(MurmurColor.inkTertiary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(MurmurColor.inkTertiary)
+                }
+                .padding(14)
+                .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(MurmurColor.hairline, lineWidth: 1))
+            }
+
             if let shareError {
                 Text(shareError)
                     .font(MurmurFont.rounded(12))

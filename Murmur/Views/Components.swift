@@ -12,6 +12,7 @@ import SwiftUI
 /// Bars 0...1 tall; bars before `progress` use the accent gradient, the rest
 /// are muted. The visual signature of a murmur.
 struct WaveformView: View {
+    @ObservedObject private var theme = Theme.shared
     let bars: [Double]
     var progress: Double = 1
     var height: CGFloat = 40
@@ -44,6 +45,7 @@ struct WaveformView: View {
 
 /// Animated bars that peak in the middle and breathe with the input `level`.
 struct LiveWaveformView: View {
+    @ObservedObject private var theme = Theme.shared
     var level: CGFloat
     var paused: Bool = false
     var barCount: Int = 33
@@ -83,6 +85,7 @@ struct LiveWaveformView: View {
 
 /// Gradient circle with a serif-italic initial and an optional night badge.
 struct MurmurAvatar: View {
+    @ObservedObject private var theme = Theme.shared
     var initial: String
     var size: CGFloat = 40
     /// Optional solid fill (e.g. your profile colour); defaults to the gradient.
@@ -138,6 +141,7 @@ struct GlassButton: View {
 // MARK: - Breathing record button (the emotional centre)
 
 struct BreathingRecordButton: View {
+    @ObservedObject private var theme = Theme.shared
     var size: CGFloat = 74
     var action: () -> Void
     @State private var breathe = false

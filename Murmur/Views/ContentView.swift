@@ -258,6 +258,7 @@ struct ContentView: View {
 // MARK: - Bubble
 
 private struct MurmurBubble: View {
+    @ObservedObject private var theme = Theme.shared
     let murmur: Murmur
     let mine: Bool
     let bubbleWidth: CGFloat

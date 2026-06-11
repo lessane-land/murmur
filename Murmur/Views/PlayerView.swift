@@ -13,6 +13,7 @@ struct PlayerView: View {
     var onReply: () -> Void = {}
     var onPlaybackStarted: () -> Void = {}
 
+    @ObservedObject private var theme = Theme.shared
     @Environment(\.dismiss) private var dismiss
     @StateObject private var controller = AudioPlayerController()
     @State private var showTranscript = true
