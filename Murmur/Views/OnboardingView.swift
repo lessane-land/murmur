@@ -5,6 +5,8 @@
 //
 
 import SwiftUI
+import Contacts
+import ContactsUI
 
 struct OnboardingView: View {
     @ObservedObject private var profile = ProfileStore.shared
@@ -14,6 +16,7 @@ struct OnboardingView: View {
     @State private var partnerName = ""
     @State private var partnerEmail = ""
     @State private var location = PartnerLocation.options.first!
+    @State private var showContactPicker = false
 
     private var canContinue: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty &&
@@ -30,6 +33,7 @@ struct OnboardingView: View {
                     avatarPreview
                     field("Your name", text: $name, prompt: "Vane")
                     stylePicker
+                    contactButton
                     field("Partner's name", text: $partnerName, prompt: "Manal")
                     field("Partner's iCloud email", text: $partnerEmail,
                           prompt: "manal@icloud.com", keyboard: .emailAddress)
@@ -54,6 +58,44 @@ struct OnboardingView: View {
         }
         .preferredColorScheme(.dark)
         .animation(.easeInOut(duration: 0.25), value: theme.palette.id)
+        .sheet(isPresented: $showContactPicker) {
+            ContactPicker { contact in apply(contact) }
+                .ignoresSafeArea()
+        }
+    }
+
+    private var contactButton: some View {
+        Button {
+            showContactPicker = true
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(MurmurColor.accent)
+                Text("Fill from Contacts")
+                    .font(MurmurFont.rounded(15, weight: .semibold))
+                    .foregroundStyle(MurmurColor.inkPrimary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(MurmurColor.inkTertiary)
+            }
+            .padding(14)
+            .background(MurmurColor.accentGradientSoft, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(MurmurColor.accent.opacity(0.3), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func apply(_ contact: CNContact) {
+        let resolvedName = contact.nickname.isEmpty ? contact.givenName : contact.nickname
+        if !resolvedName.isEmpty { partnerName = resolvedName }
+        if let email = contact.emailAddresses.first?.value as String? { partnerEmail = email }
+        if let city = contact.postalAddresses.first?.value.city,
+           let match = PartnerLocation.options.first(where: { $0.city.caseInsensitiveCompare(city) == .orderedSame }) {
+            location = match
+        }
     }
 
     // MARK: Sections
@@ -199,6 +241,34 @@ struct OnboardingView: View {
 
     private var initial: String {
         String(name.trimmingCharacters(in: .whitespaces).first ?? "?").uppercased()
+    }
+}
+
+// MARK: - Contacts picker
+
+/// Lets the user pick their partner from Contacts to auto-fill name + email.
+/// The system picker returns only the chosen contact, so no contacts permission
+/// prompt is needed.
+struct ContactPicker: UIViewControllerRepresentable {
+    var onSelect: (CNContact) -> Void
+
+    func makeUIViewController(context: Context) -> CNContactPickerViewController {
+        let picker = CNContactPickerViewController()
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ controller: CNContactPickerViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(onSelect: onSelect) }
+
+    final class Coordinator: NSObject, CNContactPickerDelegate {
+        let onSelect: (CNContact) -> Void
+        init(onSelect: @escaping (CNContact) -> Void) { self.onSelect = onSelect }
+
+        func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
+            onSelect(contact)
+        }
     }
 }
 
