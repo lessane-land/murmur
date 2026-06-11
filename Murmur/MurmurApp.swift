@@ -21,7 +21,8 @@ struct MurmurApp: App {
     /// we delete the stale store and recreate it. (Pre-release only; once the
     /// model stabilises this should become a real VersionedSchema migration.)
     static func makeModelContainer() -> ModelContainer {
-        let schema = Schema([Murmur.self])
+        // Versioned schema + migration plan so model changes preserve murmurs.
+        let schema = Schema(versionedSchema: MurmurSchemaV1.self)
         // cloudKitDatabase: .none is important. The app carries an iCloud
         // CloudKit entitlement (for our manual CKShare-based two-person sync in
         // CloudKitService), and SwiftData would otherwise auto-enable its own
@@ -33,14 +34,19 @@ struct MurmurApp: App {
                                                cloudKitDatabase: .none)
 
         do {
-            return try ModelContainer(for: schema, configurations: [configuration])
+            return try ModelContainer(for: schema,
+                                      migrationPlan: MurmurMigrationPlan.self,
+                                      configurations: [configuration])
         } catch {
+            // Last resort only: an old/incompatible dev store that predates the
+            // versioned schema. Reset once; migrations handle changes after this.
             print("Murmur: model store load failed (\(error)); resetting store.")
             deleteStore(at: configuration.url)
             do {
-                return try ModelContainer(for: schema, configurations: [configuration])
+                return try ModelContainer(for: schema,
+                                          migrationPlan: MurmurMigrationPlan.self,
+                                          configurations: [configuration])
             } catch {
-                // Last resort: run in memory so the app still launches.
                 print("Murmur: store reset failed (\(error)); falling back to in-memory.")
                 let memory = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
                 return try! ModelContainer(for: schema, configurations: [memory])

@@ -87,6 +87,20 @@ enum MurmurReaction {
     static let symbols = ["heart.fill", "sparkles", "flame.fill", "star.fill", "hand.thumbsup.fill"]
 }
 
+// MARK: - Versioned schema + migration
+
+/// Version 1 of the data model. Future field changes add a V2 (etc.) and a
+/// migration stage, so updates preserve existing murmurs instead of resetting.
+enum MurmurSchemaV1: VersionedSchema {
+    static var versionIdentifier = Schema.Version(1, 0, 0)
+    static var models: [any PersistentModel.Type] { [Murmur.self] }
+}
+
+enum MurmurMigrationPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] { [MurmurSchemaV1.self] }
+    static var stages: [MigrationStage] { [] }
+}
+
 // MARK: - Derived
 
 extension Murmur {
