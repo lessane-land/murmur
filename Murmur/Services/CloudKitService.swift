@@ -41,8 +41,12 @@ final class CloudKitService {
     // MARK: Account
 
     func isAccountAvailable() async -> Bool {
-        guard isEnabled else { return false }
+        guard isEnabled else {
+            print("Murmur.sync: OFF — turn on Settings → Sync")
+            return false
+        }
         let status = (try? await container.accountStatus()) ?? .couldNotDetermine
+        print("Murmur.sync: iCloud account status = \(status.rawValue) (3 = available)")
         return status == .available
     }
 
@@ -61,6 +65,7 @@ final class CloudKitService {
         guard await isAccountAvailable() else { return }
         let predicate = #Predicate<Murmur> { $0.isOutgoing && !$0.isUploaded }
         guard let pending = try? context.fetch(FetchDescriptor(predicate: predicate)) else { return }
+        print("Murmur.sync: \(pending.count) murmur(s) pending upload")
 
         for murmur in pending {
             do {
@@ -68,8 +73,9 @@ final class CloudKitService {
                 murmur.ckRecordName = recordName
                 murmur.isUploaded = true
                 try? context.save()
+                print("Murmur.sync: uploaded \(recordName)")
             } catch {
-                print("Murmur: upload failed — \(error)")
+                print("Murmur.sync: upload FAILED — \(error)")
             }
         }
     }
