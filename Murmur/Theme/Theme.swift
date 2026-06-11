@@ -97,6 +97,18 @@ final class Theme: ObservableObject {
 
     func select(_ palette: MurmurPalette) {
         self.palette = palette
+        Self.applyAppIcon(palette.alternateIconName)
+    }
+
+    /// Switches the home-screen app icon to match the style.
+    private static func applyAppIcon(_ name: String?) {
+        #if canImport(UIKit)
+        DispatchQueue.main.async {
+            let app = UIApplication.shared
+            guard app.supportsAlternateIcons, app.alternateIconName != name else { return }
+            app.setAlternateIconName(name)
+        }
+        #endif
     }
 }
 
