@@ -115,7 +115,8 @@ struct ContentView: View {
 
     private var timeline: some View {
         GeometryReader { geo in
-            let waveWidth = max(120, min(196, (geo.size.width - 36) * 0.78 - 58))
+            // Fixed bubble width (a fraction of the row) so nothing can overflow.
+            let bubbleWidth = min((geo.size.width - 36) * 0.82, 320)
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -124,8 +125,7 @@ struct ContentView: View {
                             ForEach(group.items) { murmur in
                                 MurmurBubble(murmur: murmur,
                                              mine: murmur.isOutgoing,
-                                             youColor: profile.avatarColor,
-                                             waveWidth: waveWidth)
+                                             bubbleWidth: bubbleWidth)
                                     .onTapGesture { path.append(murmur) }
                                     .contextMenu {
                                         Button(role: .destructive) { pendingDelete = murmur } label: {
@@ -252,17 +252,16 @@ struct ContentView: View {
 private struct MurmurBubble: View {
     let murmur: Murmur
     let mine: Bool
-    let youColor: Color
-    let waveWidth: CGFloat
+    let bubbleWidth: CGFloat
 
     private var unplayed: Bool { !mine && !murmur.isPlayed }
     private var progress: Double { (mine || murmur.isPlayed) ? 1 : 0 }
 
     var body: some View {
-        HStack {
-            if mine { Spacer(minLength: 36) }
+        HStack(spacing: 0) {
+            if mine { Spacer(minLength: 0) }
             bubble
-            if !mine { Spacer(minLength: 36) }
+            if !mine { Spacer(minLength: 0) }
         }
     }
 
@@ -270,16 +269,18 @@ private struct MurmurBubble: View {
         HStack(spacing: 12) {
             playAffordance
             VStack(alignment: .leading, spacing: 7) {
-                WaveformView(bars: murmur.displayWaveform(barCount: 32),
+                WaveformView(bars: murmur.displayWaveform(barCount: 30),
                              progress: progress, height: 30, gap: 2.5, minHeight: 3,
                              activeStyle: mine ? AnyShapeStyle(MurmurColor.inkSecondary)
                                                : AnyShapeStyle(MurmurColor.accentGradient),
                              inactiveColor: mine ? .white.opacity(0.14) : MurmurColor.waveInactive)
-                    .frame(width: waveWidth)
                 meta
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
+        // Force an exact width here (before the background) so the bubble can
+        // never overflow and the waveform fills the space inside it.
+        .frame(width: bubbleWidth, alignment: .leading)
         .background(mine ? AnyShapeStyle(Color.white.opacity(0.035)) : AnyShapeStyle(MurmurColor.surface),
                     in: bubbleShape)
         .overlay(bubbleShape.strokeBorder(
