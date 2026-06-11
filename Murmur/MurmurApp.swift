@@ -22,7 +22,15 @@ struct MurmurApp: App {
     /// model stabilises this should become a real VersionedSchema migration.)
     static func makeModelContainer() -> ModelContainer {
         let schema = Schema([Murmur.self])
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        // cloudKitDatabase: .none is important. The app carries an iCloud
+        // CloudKit entitlement (for our manual CKShare-based two-person sync in
+        // CloudKitService), and SwiftData would otherwise auto-enable its own
+        // CloudKit mirroring — which forbids unique constraints and requires
+        // every attribute to be optional/defaulted, crashing the load. We sync
+        // manually, so SwiftData stays purely local.
+        let configuration = ModelConfiguration(schema: schema,
+                                               isStoredInMemoryOnly: false,
+                                               cloudKitDatabase: .none)
 
         do {
             return try ModelContainer(for: schema, configurations: [configuration])
