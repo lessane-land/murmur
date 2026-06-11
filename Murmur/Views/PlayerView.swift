@@ -1,7 +1,7 @@
 //
 //  PlayerView.swift
-//  Inline waveform player shown when a murmur row is expanded. Play/pause, a
-//  tappable waveform progress bar, and a collapsible transcript.
+//  Full-screen murmur player: a waveform scrubber, transport, and a collapsible
+//  on-device transcript, with a "murmur back" call to action.
 //
 
 import SwiftUI
@@ -10,114 +10,219 @@ import AVFoundation
 
 struct PlayerView: View {
     let murmur: Murmur
+    var onReply: () -> Void = {}
     var onPlaybackStarted: () -> Void = {}
 
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var controller = AudioPlayerController()
-    @State private var showTranscript = false
+    @State private var showTranscript = true
 
-    private var bars: [Double] { murmur.displayWaveform() }
+    private var bars: [Double] { murmur.displayWaveform(barCount: 52) }
+    private var partner: String { murmur.isOutgoing ? ProfileStore.shared.partnerName : murmur.senderName }
 
     var body: some View {
-        VStack(spacing: 14) {
-            HStack(spacing: 14) {
-                playButton
-                waveform
-                Text(timeLabel)
-                    .font(MurmurFont.rounded(13, weight: .medium).monospacedDigit())
-                    .foregroundStyle(MurmurColor.inkSecondary)
-                    .frame(width: 44, alignment: .trailing)
+        ZStack {
+            MurmurColor.background.ignoresSafeArea()
+            glow
+            VStack(spacing: 0) {
+                header
+                playerCard
+                transcript
+                Spacer(minLength: 0)
             }
-
-            transcriptSection
         }
-        .padding(16)
-        .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-            .strokeBorder(MurmurColor.hairline, lineWidth: 1))
+        .toolbar(.hidden, for: .navigationBar)
+        .preferredColorScheme(.dark)
         .onDisappear { controller.stop() }
     }
 
-    // MARK: Play / pause
-
-    private var playButton: some View {
-        Button {
-            if controller.isPlaying {
-                controller.pause()
-            } else {
-                controller.play(url: murmur.audioFileURL)
-                onPlaybackStarted()
-            }
-        } label: {
-            Image(systemName: controller.isPlaying ? "pause.fill" : "play.fill")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(MurmurColor.background)
-                .frame(width: 44, height: 44)
-                .background(MurmurColor.accentGradient, in: Circle())
-                .contentTransition(.symbolEffect(.replace))
-        }
-        .buttonStyle(.plain)
+    private var glow: some View {
+        Circle()
+            .fill(RadialGradient(colors: [MurmurColor.accent.opacity(0.18), .clear],
+                                 center: .center, startRadius: 0, endRadius: 170))
+            .frame(width: 360, height: 260)
+            .blur(radius: 6)
+            .offset(y: -320)
+            .allowsHitTesting(false)
     }
 
-    // MARK: Waveform
+    // MARK: Header
 
-    private var waveform: some View {
-        GeometryReader { geo in
-            let progress = controller.progress
-            HStack(alignment: .center, spacing: 2) {
-                ForEach(Array(bars.enumerated()), id: \.offset) { index, value in
-                    let fraction = bars.isEmpty ? 0 : Double(index) / Double(bars.count)
-                    Capsule()
-                        .fill(fraction <= progress ? MurmurColor.accent : MurmurColor.hairlineStrong)
-                        .frame(height: max(3, CGFloat(value) * geo.size.height))
+    private var header: some View {
+        HStack(spacing: 12) {
+            GlassButton(systemName: "chevron.left", tint: MurmurColor.inkPrimary) { dismiss() }
+            MurmurAvatar(initial: murmur.avatarInitial, size: 34,
+                         solidColor: murmur.isOutgoing ? ProfileStore.shared.avatarColor : nil)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(murmur.isOutgoing ? "You" : murmur.senderName)
+                    .font(MurmurFont.rounded(15, weight: .semibold))
+                    .foregroundStyle(MurmurColor.inkPrimary)
+                Text(dayTimeLabel)
+                    .font(MurmurFont.serifItalic(13))
+                    .foregroundStyle(MurmurColor.inkTertiary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
+    }
+
+    // MARK: Player card
+
+    private var playerCard: some View {
+        VStack(spacing: 18) {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    WaveformView(bars: bars, progress: controller.progress,
+                                 height: 62, barWidth: 3, gap: 2.5, minHeight: 4)
+                        .frame(maxWidth: .infinity)
+                    Rectangle()
+                        .fill(.white)
+                        .frame(width: 2)
+                        .shadow(color: .white.opacity(0.8), radius: 8)
+                        .offset(x: geo.size.width * controller.progress - 1)
+                        .frame(maxHeight: .infinity)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { location in
+                    controller.seek(toFraction: max(0, min(1, location.x / geo.size.width)),
+                                    url: murmur.audioFileURL)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .contentShape(Rectangle())
-            .onTapGesture { location in
-                let fraction = max(0, min(1, location.x / geo.size.width))
-                controller.seek(toFraction: fraction, url: murmur.audioFileURL)
+            .frame(height: 70)
+
+            HStack(spacing: 16) {
+                Button {
+                    if controller.isPlaying { controller.pause() }
+                    else { controller.play(url: murmur.audioFileURL); onPlaybackStarted() }
+                } label: {
+                    Image(systemName: controller.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(MurmurColor.background)
+                        .frame(width: 56, height: 56)
+                        .background(MurmurColor.accentGradient, in: Circle())
+                        .shadow(color: MurmurColor.accentDeep.opacity(0.4), radius: 12, y: 6)
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .buttonStyle(.plain)
+
+                VStack(spacing: 8) {
+                    HStack {
+                        Text(timeString(murmur.duration * controller.progress))
+                            .font(MurmurFont.rounded(14, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(MurmurColor.inkPrimary)
+                        Spacer()
+                        Text(murmur.durationLabel)
+                            .font(MurmurFont.rounded(13).monospacedDigit())
+                            .foregroundStyle(MurmurColor.inkTertiary)
+                    }
+                    progressBar
+                }
             }
         }
-        .frame(height: 40)
+        .padding(20)
+        .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(MurmurColor.hairline, lineWidth: 1))
+        .padding(.horizontal, 18)
+        .padding(.top, 24)
+    }
+
+    private var progressBar: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(MurmurColor.waveInactive).frame(height: 4)
+                Capsule().fill(MurmurColor.accentGradient)
+                    .frame(width: geo.size.width * controller.progress, height: 4)
+                Circle().fill(.white)
+                    .frame(width: 12, height: 12)
+                    .shadow(color: MurmurColor.accentDeep.opacity(0.8), radius: 5)
+                    .offset(x: geo.size.width * controller.progress - 6)
+            }
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { value in
+                controller.seek(toFraction: max(0, min(1, value.location.x / geo.size.width)),
+                                url: murmur.audioFileURL)
+            })
+        }
+        .frame(height: 14)
     }
 
     // MARK: Transcript
 
-    @ViewBuilder
-    private var transcriptSection: some View {
-        if let transcript = murmur.transcript, !transcript.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { showTranscript.toggle() }
-                } label: {
-                    HStack(spacing: 6) {
-                        Text("Transcript").murmurOverline()
-                        Image(systemName: showTranscript ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(MurmurColor.inkTertiary)
-                        Spacer()
-                    }
-                }
-                .buttonStyle(.plain)
-
-                if showTranscript {
-                    Text(transcript)
-                        .font(MurmurFont.rounded(15))
+    private var transcript: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) { showTranscript.toggle() }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "lock.fill").font(.system(size: 13)).foregroundStyle(MurmurColor.accent)
+                    Text("On-device transcript")
+                        .font(MurmurFont.rounded(12, weight: .semibold)).tracking(0.7).textCase(.uppercase)
                         .foregroundStyle(MurmurColor.inkSecondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Rectangle().fill(MurmurColor.hairline).frame(height: 1)
+                    Image(systemName: "chevron.down").font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(MurmurColor.inkTertiary)
+                        .rotationEffect(.degrees(showTranscript ? 0 : -90))
                 }
             }
-        } else {
-            HStack {
-                Text("Transcribing…").murmurOverline()
-                Spacer()
+            .buttonStyle(.plain)
+            .padding(.bottom, 14)
+
+            if showTranscript {
+                if let text = murmur.transcript, !text.isEmpty {
+                    Text(text)
+                        .font(MurmurFont.display(18))
+                        .lineSpacing(5)
+                        .foregroundStyle(MurmurColor.inkPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack(spacing: 7) {
+                        Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(MurmurColor.inkTertiary)
+                        Text("Transcribed privately on your iPhone · never uploaded")
+                            .font(MurmurFont.rounded(11.5)).foregroundStyle(MurmurColor.inkTertiary)
+                    }
+                    .padding(.top, 16)
+                } else {
+                    Text("Transcribing on device…")
+                        .font(MurmurFont.display(17)).foregroundStyle(MurmurColor.inkSecondary)
+                        .padding(.top, 4)
+                }
             }
+
+            Button { dismiss(); onReply() } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: "mic.fill").font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(MurmurColor.accent)
+                    Text("Murmur back to \(partner.isEmpty ? "them" : partner)")
+                        .font(MurmurFont.rounded(14.5, weight: .semibold))
+                        .foregroundStyle(MurmurColor.inkPrimary)
+                }
+                .frame(maxWidth: .infinity).padding(.vertical, 14)
+                .background(MurmurColor.accentGradientSoft, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(MurmurColor.accent.opacity(0.35), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 22)
         }
+        .padding(.horizontal, 20)
+        .padding(.top, 22)
     }
 
-    private var timeLabel: String {
-        let remaining = max(0, murmur.duration * (1 - controller.progress))
-        let total = Int(remaining.rounded())
+    // MARK: Helpers
+
+    private var dayTimeLabel: String {
+        let calendar = Calendar.current
+        let day: String
+        if calendar.isDateInToday(murmur.createdAt) { day = "Today" }
+        else if calendar.isDateInYesterday(murmur.createdAt) { day = "Yesterday" }
+        else { day = murmur.createdAt.formatted(.dateTime.month(.abbreviated).day()) }
+        return "\(day) · \(murmur.createdAt.formatted(.dateTime.hour().minute()))"
+    }
+
+    private func timeString(_ seconds: Double) -> String {
+        let total = Int(seconds.rounded())
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
@@ -158,12 +263,9 @@ final class AudioPlayerController: NSObject, ObservableObject {
     }
 
     func stop() {
-        player?.stop()
-        player = nil
-        isPlaying = false
-        progress = 0
-        timer?.invalidate()
-        timer = nil
+        player?.stop(); player = nil
+        isPlaying = false; progress = 0
+        timer?.invalidate(); timer = nil
     }
 
     private func configureSession() {

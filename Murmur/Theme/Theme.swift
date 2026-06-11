@@ -57,6 +57,12 @@ struct MurmurPalette: Identifiable, Equatable {
         LinearGradient(colors: [accentStart, accentMid, accentEnd],
                        startPoint: .topLeading, endPoint: .bottomTrailing)
     }
+
+    /// Soft, low-opacity accent for fills behind icons / CTAs.
+    var gradientSoft: LinearGradient {
+        LinearGradient(colors: [accentStart.opacity(0.22), accentEnd.opacity(0.22)],
+                       startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
 }
 
 // MARK: - Theme (runtime-switchable, persisted)
@@ -98,15 +104,19 @@ enum MurmurColor {
     static var backgroundWell: Color { p.backgroundWell }
     static var recordingDot: Color { p.recordingDot }
     static var accentGradient: LinearGradient { p.gradient }
+    static var accentGradientSoft: LinearGradient { p.gradientSoft }
 
-    // Constant neutrals (warm-leaning inks read well on every palette).
-    static let surface = Color.white.opacity(0.05)
-    static let surfaceHi = Color.white.opacity(0.08)
+    // Constant neutrals (read well on every near-black palette).
+    static let surface = Color.white.opacity(0.045)
+    static let surfaceHi = Color.white.opacity(0.07)
     static let hairline = Color.white.opacity(0.08)
     static let hairlineStrong = Color.white.opacity(0.14)
-    static let inkPrimary = Color(hex: 0xF4EFEA)
-    static let inkSecondary = Color(hex: 0xB8ACA4)
-    static let inkTertiary = Color(hex: 0x7E7268)
+    static let inkPrimary = Color(hex: 0xF3F1FA)
+    static let inkSecondary = Color(hex: 0xA8A4BE)
+    static let inkTertiary = Color(hex: 0x6A6783)
+    static let waveInactive = Color.white.opacity(0.16)
+    /// Fixed live-recording pulse colour (matches the design).
+    static let recordingPink = Color(hex: 0xFF5B7F)
 }
 
 // MARK: - Typography
@@ -117,19 +127,24 @@ enum MurmurFont {
         .system(size: size, weight: weight, design: .rounded)
     }
 
-    /// New York serif — display text.
+    /// New York serif — display text (transcript body, etc.).
     static func display(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
         .system(size: size, weight: weight, design: .serif)
     }
 
-    /// Serif italic wordmark — feels personal, like handwriting's dignified cousin.
-    static func wordmark(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .semibold, design: .serif).italic()
+    /// New York serif *italic* — wordmark, timestamps, day labels, the timer.
+    static func serifItalic(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .system(size: size, weight: weight, design: .serif).italic()
     }
 
-    /// Large serif monospaced-digit recording timer.
+    /// Serif-italic wordmark.
+    static func wordmark(_ size: CGFloat) -> Font {
+        .system(size: size, weight: .medium, design: .serif).italic()
+    }
+
+    /// Large serif-italic monospaced-digit recording timer.
     static func timer(_ size: CGFloat = 60) -> Font {
-        .system(size: size, weight: .regular, design: .serif).monospacedDigit()
+        .system(size: size, weight: .regular, design: .serif).italic().monospacedDigit()
     }
 }
 

@@ -33,8 +33,13 @@ final class RecordViewModel: ObservableObject {
     // MARK: Forwarded state
 
     var isRecording: Bool { audio.isRecording }
+    var isPaused: Bool { audio.isPaused }
     var elapsed: TimeInterval { audio.elapsed }
     var level: CGFloat { audio.level }
+
+    func togglePause() {
+        if audio.isPaused { audio.resume() } else { audio.pause() }
+    }
 
     var elapsedLabel: String {
         let total = Int(elapsed)

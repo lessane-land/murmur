@@ -17,7 +17,9 @@ final class AudioService: ObservableObject {
 
     /// True while the engine is running and writing to disk.
     @Published private(set) var isRecording = false
-    /// Seconds since the current recording began.
+    /// True while recording is paused.
+    @Published private(set) var isPaused = false
+    /// Seconds since the current recording began (excludes paused time).
     @Published private(set) var elapsed: TimeInterval = 0
     /// Smoothed input loudness, 0...1 — drives the pulsing ring.
     @Published private(set) var level: CGFloat = 0
@@ -26,6 +28,7 @@ final class AudioService: ObservableObject {
     private var audioFile: AVAudioFile?
     private var currentURL: URL?
     private var startDate: Date?
+    private var accumulated: TimeInterval = 0
     private var timer: Timer?
 
     /// Every captured level, used to build a downsampled waveform on stop.
@@ -77,9 +80,36 @@ final class AudioService: ObservableObject {
         audioFile = file
         currentURL = url
         startDate = Date()
+        accumulated = 0
         capturedLevels.removeAll(keepingCapacity: true)
         isRecording = true
+        isPaused = false
         elapsed = 0
+        startTimer()
+    }
+
+    /// Pauses recording without ending it.
+    func pause() {
+        guard isRecording, !isPaused else { return }
+        engine.pause()
+        if let startDate { accumulated += Date().timeIntervalSince(startDate) }
+        startDate = nil
+        timer?.invalidate(); timer = nil
+        level = 0
+        isPaused = true
+    }
+
+    /// Resumes a paused recording.
+    func resume() {
+        guard isRecording, isPaused else { return }
+        do {
+            try engine.start()
+        } catch {
+            print("Murmur: failed to resume recording — \(error)")
+            return
+        }
+        startDate = Date()
+        isPaused = false
         startTimer()
     }
 
@@ -113,9 +143,11 @@ final class AudioService: ObservableObject {
         try? AVAudioSession.sharedInstance().setActive(false)
 
         isRecording = false
+        isPaused = false
         level = 0
         elapsed = 0
         startDate = nil
+        accumulated = 0
 
         let url = currentURL
         currentURL = nil
@@ -163,7 +195,7 @@ final class AudioService: ObservableObject {
         let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self, let start = self.startDate else { return }
-                self.elapsed = Date().timeIntervalSince(start)
+                self.elapsed = self.accumulated + Date().timeIntervalSince(start)
             }
         }
         RunLoop.main.add(timer, forMode: .common)
