@@ -22,9 +22,16 @@ import SwiftData
 final class CloudKitService {
     static let shared = CloudKitService()
 
-    let container = CKContainer.default()
-    var privateDB: CKDatabase { container.privateCloudDatabase }
-    var sharedDB: CKDatabase { container.sharedCloudDatabase }
+    /// CloudKit is disabled until two-person pairing is wired up with the iCloud
+    /// + Push capabilities provisioned. Keeping it off lets the app build and
+    /// sign on any device/account, and guarantees CKContainer.default() (which
+    /// requires the iCloud entitlement) is never touched.
+    private let isEnabled = false
+
+    /// Lazy so it's only created when CloudKit is actually enabled.
+    lazy var container = CKContainer.default()
+    private var privateDB: CKDatabase { container.privateCloudDatabase }
+    private var sharedDB: CKDatabase { container.sharedCloudDatabase }
 
     static let zoneName = "Murmurs"
     static let recordType = "Murmur"
@@ -35,6 +42,7 @@ final class CloudKitService {
     // MARK: Account
 
     func isAccountAvailable() async -> Bool {
+        guard isEnabled else { return false }
         let status = (try? await container.accountStatus()) ?? .couldNotDetermine
         return status == .available
     }
@@ -146,6 +154,7 @@ final class CloudKitService {
     /// Returns the zone-wide share for our Murmurs zone, creating it if needed.
     /// Send `share.url` to the partner; tapping it opens the app and accepts.
     func fetchOrCreateShare() async throws -> CKShare {
+        guard isEnabled else { throw CKError(.notAuthenticated) }
         try await ensureZone()
 
         let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: zoneID)
@@ -166,6 +175,7 @@ final class CloudKitService {
 
     /// Accepts a share the partner sent us (called from the app delegate).
     func accept(_ metadata: CKShare.Metadata) async {
+        guard isEnabled else { return }
         await withCheckedContinuation { continuation in
             let operation = CKAcceptSharesOperation(shareMetadatas: [metadata])
             operation.acceptSharesResultBlock = { _ in continuation.resume() }

@@ -27,8 +27,10 @@ struct PlayerView: View {
 
     var body: some View {
         ZStack {
-            MurmurColor.background.ignoresSafeArea()
-            glow
+            MurmurColor.background
+                .overlay(glow, alignment: .top)
+                .clipped()
+                .ignoresSafeArea()
             VStack(spacing: 0) {
                 header
                 playerCard
@@ -47,7 +49,7 @@ struct PlayerView: View {
                                  center: .center, startRadius: 0, endRadius: 170))
             .frame(width: 360, height: 260)
             .blur(radius: 6)
-            .offset(y: -320)
+            .offset(y: -120)
             .allowsHitTesting(false)
     }
 

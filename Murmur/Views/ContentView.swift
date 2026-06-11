@@ -22,8 +22,12 @@ struct ContentView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ZStack {
-                MurmurColor.background.ignoresSafeArea()
-                auroraGlow
+                // Glow is an OVERLAY of the (screen-sized) background so its
+                // 460pt width can't expand the layout and push content off-screen.
+                MurmurColor.background
+                    .overlay(auroraGlow, alignment: .top)
+                    .clipped()
+                    .ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     header
@@ -63,7 +67,7 @@ struct ContentView: View {
                 center: .center, startRadius: 10, endRadius: 210))
             .frame(width: 460, height: 340)
             .blur(radius: 8)
-            .offset(y: -360)
+            .offset(y: -150)
             .allowsHitTesting(false)
     }
 

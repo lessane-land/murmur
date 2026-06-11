@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreLocation
 
 // MARK: - Static waveform with progress
 
@@ -176,52 +177,122 @@ struct BreathingRecordButton: View {
     }
 }
 
-// MARK: - Location picker (searchable, all time zones)
+// MARK: - Location picker (search any city by name via geocoding)
 
 struct LocationPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
+    @State private var results: [GeoResult] = []
+    @State private var isSearching = false
+    @State private var message: String? = "Type a city and search."
     var onSelect: (PartnerLocation) -> Void
 
-    private var filtered: [PartnerLocation] {
-        guard !query.isEmpty else { return PartnerLocation.all }
-        return PartnerLocation.all.filter {
-            $0.city.localizedCaseInsensitiveContains(query) ||
-            $0.timeZoneID.localizedCaseInsensitiveContains(query)
-        }
+    private let geocoder = CLGeocoder()
+
+    struct GeoResult: Identifiable {
+        let id = UUID()
+        let city: String
+        let detail: String
+        let timeZoneID: String
     }
 
     var body: some View {
         NavigationStack {
-            List(filtered) { location in
-                Button {
-                    onSelect(location)
-                    dismiss()
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(location.city)
-                            .font(MurmurFont.rounded(16, weight: .medium))
-                            .foregroundStyle(MurmurColor.inkPrimary)
-                        Text(location.timeZoneID.replacingOccurrences(of: "_", with: " "))
-                            .font(MurmurFont.rounded(12))
-                            .foregroundStyle(MurmurColor.inkTertiary)
+            VStack(spacing: 0) {
+                searchBar
+                if let message {
+                    Spacer()
+                    Text(message)
+                        .font(MurmurFont.rounded(14))
+                        .foregroundStyle(MurmurColor.inkTertiary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                    Spacer()
+                } else {
+                    List(results) { result in
+                        Button {
+                            onSelect(PartnerLocation(city: result.city, timeZoneID: result.timeZoneID))
+                            dismiss()
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(result.city)
+                                    .font(MurmurFont.rounded(16, weight: .medium))
+                                    .foregroundStyle(MurmurColor.inkPrimary)
+                                Text(result.detail)
+                                    .font(MurmurFont.rounded(12))
+                                    .foregroundStyle(MurmurColor.inkTertiary)
+                            }
+                        }
+                        .listRowBackground(MurmurColor.surface)
                     }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
                 }
-                .listRowBackground(MurmurColor.surface)
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .background(MurmurColor.background)
-            .searchable(text: $query, prompt: "Search any city or region")
+            .background(MurmurColor.background.ignoresSafeArea())
             .navigationTitle("Where is she?")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass").foregroundStyle(MurmurColor.inkTertiary)
+            TextField("Type any city — San Francisco, Oakland…", text: $query)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                .foregroundStyle(MurmurColor.inkPrimary)
+                .onSubmit(search)
+            if isSearching {
+                ProgressView().tint(MurmurColor.accent)
+            } else if !query.isEmpty {
+                Button { search() } label: { Image(systemName: "arrow.right.circle.fill") }
+                    .foregroundStyle(MurmurColor.accent)
+            }
+        }
+        .padding(14)
+        .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(MurmurColor.hairline, lineWidth: 1))
+        .padding(16)
+    }
+
+    private func search() {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        isSearching = true
+        message = nil
+        results = []
+        geocoder.cancelGeocode()
+        geocoder.geocodeAddressString(trimmed) { placemarks, error in
+            isSearching = false
+            if let error = error as NSError?,
+               error.domain == kCLErrorDomain, error.code == CLError.network.rawValue {
+                message = "Search failed — check your connection."
+                return
+            }
+            guard let placemarks, !placemarks.isEmpty else {
+                message = "No place called \u{201C}\(trimmed)\u{201D}."
+                return
+            }
+            var seen = Set<String>()
+            results = placemarks.compactMap { placemark -> GeoResult? in
+                guard let tz = placemark.timeZone else { return nil }
+                let city = placemark.locality ?? placemark.name ?? trimmed
+                let detail = [placemark.administrativeArea, placemark.country]
+                    .compactMap { $0 }.joined(separator: ", ")
+                let key = "\(city)|\(tz.identifier)"
+                guard !seen.contains(key) else { return nil }
+                seen.insert(key)
+                return GeoResult(city: city,
+                                 detail: detail.isEmpty ? tz.identifier : detail,
+                                 timeZoneID: tz.identifier)
+            }
+            if results.isEmpty { message = "Couldn't find a time zone for \u{201C}\(trimmed)\u{201D}." }
+        }
     }
 }
 
