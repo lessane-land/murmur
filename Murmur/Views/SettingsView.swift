@@ -10,10 +10,13 @@ struct SettingsView: View {
     @ObservedObject private var theme = Theme.shared
     @ObservedObject private var profile = ProfileStore.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @StateObject private var listModel = MurmurListViewModel()
 
     @State private var shareURL: URL?
     @State private var isPreparingShare = false
     @State private var shareError: String?
+    @State private var confirmReset = false
 
     var body: some View {
         ZStack {
@@ -24,6 +27,7 @@ struct SettingsView: View {
                     profileSummary
                     connectSection
                     paletteSection
+                    demoSection
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 40)
@@ -35,6 +39,12 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .confirmationDialog("Delete all murmurs?", isPresented: $confirmReset, titleVisibility: .visible) {
+            Button("Delete all", role: .destructive) {
+                listModel.deleteAll(in: modelContext)
+            }
+            Button("Cancel", role: .cancel) {}
+        }
     }
 
     // MARK: Header
@@ -167,6 +177,38 @@ struct SettingsView: View {
                     withAnimation(.easeInOut(duration: 0.25)) { theme.select(palette) }
                 }
             }
+        }
+    }
+
+    // MARK: Demo
+
+    private var demoSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Demo").murmurOverline()
+
+            Button {
+                listModel.seedDemoMurmurs(in: modelContext, partnerName: profile.partnerName)
+                dismiss()
+            } label: {
+                sectionRow(icon: "sparkles",
+                           title: "Add demo murmurs",
+                           subtitle: "Sample incoming messages to preview the inbox")
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                confirmReset = true
+            } label: {
+                sectionRow(icon: "trash",
+                           title: "Delete all murmurs",
+                           subtitle: "Clear everything and start fresh")
+            }
+            .buttonStyle(.plain)
+
+            Text("Demo murmurs are local-only stand-ins so you can see the two-person inbox without CloudKit pairing.")
+                .font(MurmurFont.rounded(12))
+                .foregroundStyle(MurmurColor.inkTertiary)
+                .padding(.top, 2)
         }
     }
 }
