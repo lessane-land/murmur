@@ -52,6 +52,9 @@ final class Murmur {
     /// (incoming) CloudKit. Outgoing murmurs start false and are uploaded later.
     var isUploaded: Bool
 
+    /// SF Symbol name of a reaction on this murmur (e.g. "heart.fill"), or nil.
+    var reaction: String?
+
     init(id: UUID = UUID(),
          senderName: String,
          audioFileName: String,
@@ -62,7 +65,8 @@ final class Murmur {
          isOutgoing: Bool = true,
          waveform: [Double]? = nil,
          ckRecordName: String? = nil,
-         isUploaded: Bool = false) {
+         isUploaded: Bool = false,
+         reaction: String? = nil) {
         self.id = id
         self.senderName = senderName
         self.audioFileName = audioFileName
@@ -74,7 +78,13 @@ final class Murmur {
         self.waveform = waveform
         self.ckRecordName = ckRecordName
         self.isUploaded = isUploaded
+        self.reaction = reaction
     }
+}
+
+/// Reaction options (SF Symbols only — no emoji, per the design language).
+enum MurmurReaction {
+    static let symbols = ["heart.fill", "sparkles", "flame.fill", "star.fill", "hand.thumbsup.fill"]
 }
 
 // MARK: - Derived

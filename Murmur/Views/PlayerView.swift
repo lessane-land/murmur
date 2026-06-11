@@ -35,6 +35,7 @@ struct PlayerView: View {
             VStack(spacing: 0) {
                 header
                 playerCard
+                reactionBar
                 transcript
                 Spacer(minLength: 0)
             }
@@ -158,6 +159,35 @@ struct PlayerView: View {
             })
         }
         .frame(height: 14)
+    }
+
+    // MARK: Reactions
+
+    private var reactionBar: some View {
+        HStack(spacing: 12) {
+            ForEach(MurmurReaction.symbols, id: \.self) { symbol in
+                let selected = murmur.reaction == symbol
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                        murmur.reaction = selected ? nil : symbol
+                    }
+                    try? modelContext.save()
+                } label: {
+                    Image(systemName: symbol)
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundStyle(selected ? MurmurColor.background : MurmurColor.inkSecondary)
+                        .frame(width: 46, height: 46)
+                        .background(selected ? AnyShapeStyle(MurmurColor.accentGradient)
+                                             : AnyShapeStyle(MurmurColor.surface), in: Circle())
+                        .overlay(Circle().strokeBorder(selected ? Color.clear : MurmurColor.hairline, lineWidth: 1))
+                        .scaleEffect(selected ? 1.08 : 1)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 18)
+        .padding(.horizontal, 18)
     }
 
     // MARK: Transcript

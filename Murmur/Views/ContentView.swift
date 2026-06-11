@@ -18,6 +18,9 @@ struct ContentView: View {
     @State private var showRecorder = false
     @State private var showSettings = false
     @State private var pendingDelete: Murmur?
+    @State private var searching = false
+    @State private var searchText = ""
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -31,8 +34,16 @@ struct ContentView: View {
 
                 VStack(spacing: 0) {
                     header
-                    if !profile.partnerName.isEmpty { partnerCard }
-                    if murmurs.isEmpty { emptyState } else { timeline }
+                    if searching {
+                        searchBar
+                    } else if !profile.partnerName.isEmpty {
+                        partnerCard
+                    }
+                    if filteredMurmurs.isEmpty {
+                        searching ? AnyView(noResults) : AnyView(emptyState)
+                    } else {
+                        timeline
+                    }
                 }
 
                 recordDock
@@ -74,16 +85,56 @@ struct ContentView: View {
     // MARK: Header
 
     private var header: some View {
-        HStack {
+        HStack(spacing: 10) {
             Text("Murmur")
                 .font(MurmurFont.wordmark(30))
                 .foregroundStyle(MurmurColor.inkPrimary)
             Spacer()
+            GlassButton(systemName: "magnifyingglass", iconSize: 16,
+                        tint: MurmurColor.inkSecondary) {
+                withAnimation(.easeInOut(duration: 0.2)) { searching.toggle() }
+                if searching { searchFocused = true } else { searchText = "" }
+            }
             GlassButton(systemName: "ellipsis", iconSize: 17,
                         tint: MurmurColor.inkSecondary) { showSettings = true }
         }
         .padding(.horizontal, 22)
         .padding(.top, 8)
+    }
+
+    // MARK: Search
+
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass").foregroundStyle(MurmurColor.inkTertiary)
+            TextField("Search words in your murmurs", text: $searchText)
+                .focused($searchFocused)
+                .autocorrectionDisabled()
+                .foregroundStyle(MurmurColor.inkPrimary)
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { searching = false }
+                searchText = ""
+            } label: {
+                Text("Cancel").font(MurmurFont.rounded(14)).foregroundStyle(MurmurColor.accent)
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 11)
+        .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(MurmurColor.hairline, lineWidth: 1))
+        .padding(.horizontal, 22).padding(.top, 16)
+    }
+
+    private var noResults: some View {
+        VStack(spacing: 10) {
+            Spacer()
+            Image(systemName: "text.magnifyingglass").font(.system(size: 38, weight: .light))
+                .foregroundStyle(MurmurColor.inkTertiary)
+            Text("No murmurs match \u{201C}\(searchText)\u{201D}")
+                .font(MurmurFont.rounded(14)).foregroundStyle(MurmurColor.inkTertiary)
+                .multilineTextAlignment(.center).padding(.horizontal, 40)
+            Spacer(); Spacer()
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: Partner card
@@ -234,9 +285,18 @@ struct ContentView: View {
 
     private struct DayGroup { let day: Date; let label: String; let items: [Murmur] }
 
+    private var filteredMurmurs: [Murmur] {
+        let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard searching, !query.isEmpty else { return murmurs }
+        return murmurs.filter {
+            ($0.transcript?.lowercased().contains(query) ?? false) ||
+            $0.senderName.lowercased().contains(query)
+        }
+    }
+
     private var groupedMurmurs: [DayGroup] {
         let calendar = Calendar.current
-        let groups = Dictionary(grouping: murmurs) { calendar.startOfDay(for: $0.createdAt) }
+        let groups = Dictionary(grouping: filteredMurmurs) { calendar.startOfDay(for: $0.createdAt) }
         // Oldest day first (top) → newest day last (bottom), chat-style.
         return groups.keys.sorted(by: <).map {
             DayGroup(day: $0, label: Self.dayLabel(for: $0), items: groups[$0] ?? [])
@@ -331,6 +391,11 @@ private struct MurmurBubble: View {
             Text(MurmurBubble.timeLabel(for: murmur.createdAt))
                 .font(MurmurFont.serifItalic(13))
                 .foregroundStyle(MurmurColor.inkTertiary)
+            if let reaction = murmur.reaction {
+                Image(systemName: reaction)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(MurmurColor.accent)
+            }
             if mine {
                 Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
                     .foregroundStyle(MurmurColor.accent)
