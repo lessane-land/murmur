@@ -13,15 +13,41 @@ import UserNotifications
 struct MurmurApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
-    let sharedModelContainer: ModelContainer = {
+    let sharedModelContainer: ModelContainer = MurmurApp.makeModelContainer()
+
+    /// Builds the SwiftData container, recovering from an incompatible on-disk
+    /// store. The schema evolved across early development, so a store written by
+    /// an older build can't be migrated automatically — rather than hard-crash,
+    /// we delete the stale store and recreate it. (Pre-release only; once the
+    /// model stabilises this should become a real VersionedSchema migration.)
+    static func makeModelContainer() -> ModelContainer {
         let schema = Schema([Murmur.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+
         do {
             return try ModelContainer(for: schema, configurations: [configuration])
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            print("Murmur: model store load failed (\(error)); resetting store.")
+            deleteStore(at: configuration.url)
+            do {
+                return try ModelContainer(for: schema, configurations: [configuration])
+            } catch {
+                // Last resort: run in memory so the app still launches.
+                print("Murmur: store reset failed (\(error)); falling back to in-memory.")
+                let memory = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                return try! ModelContainer(for: schema, configurations: [memory])
+            }
         }
-    }()
+    }
+
+    /// Removes the SQLite store and its -wal / -shm sidecar files.
+    private static func deleteStore(at url: URL) {
+        let fm = FileManager.default
+        for suffix in ["", "-wal", "-shm"] {
+            let path = url.path + suffix
+            try? fm.removeItem(atPath: path)
+        }
+    }
 
     init() {
         // Make the container available to background push handling. Hop to the
