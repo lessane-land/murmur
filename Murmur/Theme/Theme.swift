@@ -25,31 +25,34 @@ struct MurmurPalette: Identifiable, Equatable {
     let accentEnd: Color
     let background: Color
     let backgroundWell: Color
+    /// Inner tint of the recording sheet's radial background.
+    let sheetTint: Color
     let recordingDot: Color
     /// A representative solid colour for avatars in this style.
     let avatarHex: UInt32
 
-    /// Golden Hour — warm candlelight dark with a dusty rose / terracotta
-    /// accent. The default; matches CLAUDE.md's stated design language.
+    // Exact values from the design (Murmur.html palette variables).
+
+    /// Golden Hour — terracotta → magenta on a warm near-black. The default.
     static let goldenHour = MurmurPalette(
         id: "golden", name: "Golden Hour",
-        accentStart: Color(hex: 0xE0A07E), accentMid: Color(hex: 0xC97D6E), accentEnd: Color(hex: 0xB4655C),
-        background: Color(hex: 0x1A1714), backgroundWell: Color(hex: 0x110E0C),
-        recordingDot: Color(hex: 0xD97F6E), avatarHex: 0xC97D6E)
+        accentStart: Color(hex: 0xE07840), accentMid: Color(hex: 0xDF5A56), accentEnd: Color(hex: 0xDC4070),
+        background: Color(hex: 0x140A0B), backgroundWell: Color(hex: 0x0C0506),
+        sheetTint: Color(hex: 0x3A181A), recordingDot: Color(hex: 0xE07840), avatarHex: 0xE07840)
 
     /// Aurora — orchid → periwinkle on a cool near-black.
     static let aurora = MurmurPalette(
         id: "aurora", name: "Aurora",
         accentStart: Color(hex: 0xC97DF0), accentMid: Color(hex: 0x9B8DF7), accentEnd: Color(hex: 0x7B9FFF),
-        background: Color(hex: 0x0E0C14), backgroundWell: Color(hex: 0x08070C),
-        recordingDot: Color(hex: 0xFF5B7F), avatarHex: 0x9B8DF7)
+        background: Color(hex: 0x0A0A12), backgroundWell: Color(hex: 0x07070D),
+        sheetTint: Color(hex: 0x281C42), recordingDot: Color(hex: 0xC97DF0), avatarHex: 0xC97DF0)
 
     /// Deep Ocean — teal → cobalt on a cool near-black.
     static let deepOcean = MurmurPalette(
         id: "ocean", name: "Deep Ocean",
         accentStart: Color(hex: 0x1AD4B8), accentMid: Color(hex: 0x19A2CC), accentEnd: Color(hex: 0x1870E0),
-        background: Color(hex: 0x081016), backgroundWell: Color(hex: 0x040A0F),
-        recordingDot: Color(hex: 0x4FD6C0), avatarHex: 0x19A2CC)
+        background: Color(hex: 0x06101A), backgroundWell: Color(hex: 0x040A11),
+        sheetTint: Color(hex: 0x08202E), recordingDot: Color(hex: 0x1AD4B8), avatarHex: 0x1AD4B8)
 
     static let all: [MurmurPalette] = [.goldenHour, .aurora, .deepOcean]
 
@@ -102,6 +105,7 @@ enum MurmurColor {
     static var accentDeep: Color { p.accentEnd }
     static var background: Color { p.background }
     static var backgroundWell: Color { p.backgroundWell }
+    static var sheetTint: Color { p.sheetTint }
     static var recordingDot: Color { p.recordingDot }
     static var accentGradient: LinearGradient { p.gradient }
     static var accentGradientSoft: LinearGradient { p.gradientSoft }

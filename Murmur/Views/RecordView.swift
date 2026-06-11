@@ -19,7 +19,7 @@ struct RecordView: View {
 
     var body: some View {
         ZStack {
-            RadialGradient(colors: [MurmurColor.accentDeep.opacity(0.22), MurmurColor.backgroundWell],
+            RadialGradient(colors: [MurmurColor.sheetTint, MurmurColor.backgroundWell],
                            center: .init(x: 0.5, y: 0.08), startRadius: 0, endRadius: 560)
                 .ignoresSafeArea()
 

@@ -15,20 +15,26 @@ struct WaveformView: View {
     let bars: [Double]
     var progress: Double = 1
     var height: CGFloat = 40
-    var barWidth: CGFloat = 3
     var gap: CGFloat = 2.5
     var minHeight: CGFloat = 3
     var activeStyle: AnyShapeStyle = AnyShapeStyle(MurmurColor.accentGradient)
     var inactiveColor: Color = MurmurColor.waveInactive
 
     var body: some View {
-        let playIndex = Int((progress * Double(bars.count)).rounded())
-        HStack(alignment: .center, spacing: gap) {
-            ForEach(bars.indices, id: \.self) { i in
-                Capsule()
-                    .fill(i < playIndex ? activeStyle : AnyShapeStyle(inactiveColor))
-                    .frame(width: barWidth, height: max(minHeight, CGFloat(bars[i]) * height))
+        // Bars fill the available width exactly, so the waveform can never
+        // overflow its container regardless of how many samples there are.
+        GeometryReader { geo in
+            let n = max(bars.count, 1)
+            let barW = max(1, (geo.size.width - CGFloat(n - 1) * gap) / CGFloat(n))
+            let playIndex = Int((progress * Double(n)).rounded())
+            HStack(alignment: .center, spacing: gap) {
+                ForEach(bars.indices, id: \.self) { i in
+                    Capsule()
+                        .fill(i < playIndex ? activeStyle : AnyShapeStyle(inactiveColor))
+                        .frame(width: barW, height: max(minHeight, CGFloat(bars[i]) * height))
+                }
             }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
         }
         .frame(height: height)
     }

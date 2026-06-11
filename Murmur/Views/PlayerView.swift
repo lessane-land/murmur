@@ -74,7 +74,7 @@ struct PlayerView: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     WaveformView(bars: bars, progress: controller.progress,
-                                 height: 62, barWidth: 3, gap: 2.5, minHeight: 4)
+                                 height: 62, gap: 2.5, minHeight: 4)
                         .frame(maxWidth: .infinity)
                     Rectangle()
                         .fill(.white)

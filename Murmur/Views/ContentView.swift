@@ -114,29 +114,33 @@ struct ContentView: View {
     // MARK: Timeline
 
     private var timeline: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(groupedMurmurs, id: \.day) { group in
-                    dayDivider(group.label)
-                    ForEach(group.items) { murmur in
-                        MurmurBubble(murmur: murmur,
-                                     mine: murmur.isOutgoing,
-                                     youColor: profile.avatarColor)
-                            .onTapGesture { path.append(murmur) }
-                            .contextMenu {
-                                Button(role: .destructive) { pendingDelete = murmur } label: {
-                                    Label("Delete", systemImage: "trash")
+        GeometryReader { geo in
+            let waveWidth = max(120, min(196, (geo.size.width - 36) * 0.78 - 58))
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(groupedMurmurs, id: \.day) { group in
+                        dayDivider(group.label)
+                        ForEach(group.items) { murmur in
+                            MurmurBubble(murmur: murmur,
+                                         mine: murmur.isOutgoing,
+                                         youColor: profile.avatarColor,
+                                         waveWidth: waveWidth)
+                                .onTapGesture { path.append(murmur) }
+                                .contextMenu {
+                                    Button(role: .destructive) { pendingDelete = murmur } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
                                 }
-                            }
-                            .padding(.bottom, 14)
+                                .padding(.bottom, 14)
+                        }
                     }
                 }
+                .padding(.horizontal, 18)
+                .padding(.top, 20)
+                .padding(.bottom, 150)
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 20)
-            .padding(.bottom, 150)
+            .scrollIndicators(.hidden)
         }
-        .scrollIndicators(.hidden)
     }
 
     private func dayDivider(_ label: String) -> some View {
@@ -231,15 +235,16 @@ private struct MurmurBubble: View {
     let murmur: Murmur
     let mine: Bool
     let youColor: Color
+    let waveWidth: CGFloat
 
     private var unplayed: Bool { !mine && !murmur.isPlayed }
     private var progress: Double { (mine || murmur.isPlayed) ? 1 : 0 }
 
     var body: some View {
         HStack {
-            if mine { Spacer(minLength: 40) }
+            if mine { Spacer(minLength: 36) }
             bubble
-            if !mine { Spacer(minLength: 40) }
+            if !mine { Spacer(minLength: 36) }
         }
     }
 
@@ -247,12 +252,12 @@ private struct MurmurBubble: View {
         HStack(spacing: 12) {
             playAffordance
             VStack(alignment: .leading, spacing: 7) {
-                // 22 bars at 3 + 2.5 gap ≈ 118pt — sized to fit, no overflow.
-                WaveformView(bars: murmur.displayWaveform(barCount: 22),
-                             progress: progress, height: 30, barWidth: 3, gap: 2.5, minHeight: 3,
+                WaveformView(bars: murmur.displayWaveform(barCount: 32),
+                             progress: progress, height: 30, gap: 2.5, minHeight: 3,
                              activeStyle: mine ? AnyShapeStyle(MurmurColor.inkSecondary)
                                                : AnyShapeStyle(MurmurColor.accentGradient),
                              inactiveColor: mine ? .white.opacity(0.14) : MurmurColor.waveInactive)
+                    .frame(width: waveWidth)
                 meta
             }
         }
