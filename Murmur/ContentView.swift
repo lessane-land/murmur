@@ -9,9 +9,11 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @ObservedObject private var theme = Theme.shared
     @Query(sort: \Murmur.createdAt, order: .reverse) private var murmurs: [Murmur]
 
     @State private var showRecorder = false
+    @State private var showSettings = false
 
     var body: some View {
         ZStack {
@@ -33,6 +35,9 @@ struct ContentView: View {
         .sheet(isPresented: $showRecorder) {
             RecordView()
         }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
     }
 
     // MARK: Header
@@ -48,6 +53,17 @@ struct ContentView: View {
                     .foregroundStyle(MurmurColor.inkTertiary)
             }
             Spacer()
+            Button {
+                showSettings = true
+            } label: {
+                Image(systemName: "paintpalette.fill")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(MurmurColor.inkSecondary)
+                    .frame(width: 40, height: 40)
+                    .background(MurmurColor.surface, in: Circle())
+                    .overlay(Circle().strokeBorder(MurmurColor.hairline, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 24)
         .padding(.top, 12)

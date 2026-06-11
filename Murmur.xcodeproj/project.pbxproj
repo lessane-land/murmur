@@ -12,6 +12,7 @@
 		1FF5C68C3587451C0C8AE6CE /* Murmur.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D53059D1C649576FBA87EB0 /* Murmur.swift */; };
 		94F4855699DF9E246CA08018 /* AudioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69540984F77A8232BEF25E93 /* AudioService.swift */; };
 		056AF1AFC72B762585880F97 /* RecordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDE96BE22574D5D3679017F8 /* RecordView.swift */; };
+		4F82712B23F9500B74769638 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3415FB00BBEA9F234F9EB26D /* SettingsView.swift */; };
 		A2AF70F0B1A3003536CD2B6A /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2A32E6507F01F30E5EDE5C /* Theme.swift */; };
 		BCDEA934D2501353B4C4CE9F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CFDBAC21689581B04CB7ABB5 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
@@ -23,6 +24,7 @@
 		0D53059D1C649576FBA87EB0 /* Murmur.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Murmur.swift; sourceTree = "<group>"; };
 		69540984F77A8232BEF25E93 /* AudioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService.swift; sourceTree = "<group>"; };
 		CDE96BE22574D5D3679017F8 /* RecordView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordView.swift; sourceTree = "<group>"; };
+		3415FB00BBEA9F234F9EB26D /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AA2A32E6507F01F30E5EDE5C /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		CFDBAC21689581B04CB7ABB5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -88,6 +90,7 @@
 			isa = PBXGroup;
 			children = (
 				CDE96BE22574D5D3679017F8 /* RecordView.swift */,
+				3415FB00BBEA9F234F9EB26D /* SettingsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -174,6 +177,7 @@
 				1FF5C68C3587451C0C8AE6CE /* Murmur.swift in Sources */,
 				94F4855699DF9E246CA08018 /* AudioService.swift in Sources */,
 				056AF1AFC72B762585880F97 /* RecordView.swift in Sources */,
+				4F82712B23F9500B74769638 /* SettingsView.swift in Sources */,
 				A2AF70F0B1A3003536CD2B6A /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

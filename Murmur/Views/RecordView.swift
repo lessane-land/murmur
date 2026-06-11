@@ -10,6 +10,7 @@ import SwiftData
 struct RecordView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var theme = Theme.shared
 
     @StateObject private var audio = AudioService()
     @State private var permissionDenied = false
