@@ -12,7 +12,7 @@ struct ContentView: View {
     @ObservedObject private var theme = Theme.shared
     @ObservedObject private var profile = ProfileStore.shared
     @StateObject private var listModel = MurmurListViewModel()
-    @Query(sort: \Murmur.createdAt, order: .reverse) private var murmurs: [Murmur]
+    @Query(sort: \Murmur.createdAt, order: .forward) private var murmurs: [Murmur]
 
     @State private var path: [Murmur] = []
     @State private var showRecorder = false
@@ -116,30 +116,47 @@ struct ContentView: View {
     private var timeline: some View {
         GeometryReader { geo in
             let waveWidth = max(120, min(196, (geo.size.width - 36) * 0.78 - 58))
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(groupedMurmurs, id: \.day) { group in
-                        dayDivider(group.label)
-                        ForEach(group.items) { murmur in
-                            MurmurBubble(murmur: murmur,
-                                         mine: murmur.isOutgoing,
-                                         youColor: profile.avatarColor,
-                                         waveWidth: waveWidth)
-                                .onTapGesture { path.append(murmur) }
-                                .contextMenu {
-                                    Button(role: .destructive) { pendingDelete = murmur } label: {
-                                        Label("Delete", systemImage: "trash")
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(groupedMurmurs, id: \.day) { group in
+                            dayDivider(group.label)
+                            ForEach(group.items) { murmur in
+                                MurmurBubble(murmur: murmur,
+                                             mine: murmur.isOutgoing,
+                                             youColor: profile.avatarColor,
+                                             waveWidth: waveWidth)
+                                    .onTapGesture { path.append(murmur) }
+                                    .contextMenu {
+                                        Button(role: .destructive) { pendingDelete = murmur } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
                                     }
-                                }
-                                .padding(.bottom, 14)
+                                    .padding(.bottom, 14)
+                            }
                         }
+                        // Anchor that keeps the newest murmur above the record dock.
+                        Color.clear.frame(height: 150).id(Self.bottomAnchor)
                     }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 20)
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 20)
-                .padding(.bottom, 150)
+                .scrollIndicators(.hidden)
+                .onAppear { scrollToBottom(proxy, animated: false) }
+                .onChange(of: murmurs.count) { _, _ in scrollToBottom(proxy, animated: true) }
             }
-            .scrollIndicators(.hidden)
+        }
+    }
+
+    private static let bottomAnchor = "murmur-bottom-anchor"
+
+    private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool) {
+        DispatchQueue.main.async {
+            if animated {
+                withAnimation(.easeOut(duration: 0.3)) { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
+            } else {
+                proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
+            }
         }
     }
 
@@ -208,7 +225,8 @@ struct ContentView: View {
     private var groupedMurmurs: [DayGroup] {
         let calendar = Calendar.current
         let groups = Dictionary(grouping: murmurs) { calendar.startOfDay(for: $0.createdAt) }
-        return groups.keys.sorted(by: >).map {
+        // Oldest day first (top) → newest day last (bottom), chat-style.
+        return groups.keys.sorted(by: <).map {
             DayGroup(day: $0, label: Self.dayLabel(for: $0), items: groups[$0] ?? [])
         }
     }
