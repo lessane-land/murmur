@@ -59,9 +59,11 @@ struct MurmurPalette: Identifiable, Equatable {
 
 // MARK: - Theme (runtime-switchable, persisted)
 
-@MainActor
+/// Not @MainActor: it's read by the nonisolated `MurmurColor` tokens and only
+/// ever mutated from the UI, so plain ObservableObject is correct here.
 final class Theme: ObservableObject {
-    static let shared = Theme()
+    // Read by nonisolated colour tokens; only mutated from the UI.
+    nonisolated(unsafe) static let shared = Theme()
 
     private static let storageKey = "murmur.selectedPalette"
 

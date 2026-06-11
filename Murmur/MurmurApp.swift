@@ -24,8 +24,10 @@ struct MurmurApp: App {
     }()
 
     init() {
-        // Make the container available to background push handling.
-        SyncBridge.shared.modelContainer = sharedModelContainer
+        // Make the container available to background push handling. Hop to the
+        // main actor since SyncBridge is main-actor isolated.
+        let container = sharedModelContainer
+        Task { @MainActor in SyncBridge.shared.modelContainer = container }
     }
 
     var body: some Scene {
@@ -106,17 +108,22 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         return true
     }
 
-    /// Silent push: a murmur changed in CloudKit — pull it.
+    /// Silent push: a murmur changed in CloudKit — pull it. Uses the
+    /// completion-handler variant so the non-Sendable userInfo isn't carried
+    /// across an actor boundary.
     func application(_ application: UIApplication,
-                     didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
-        await SyncBridge.shared.sync()
-        return .newData
+                     didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+                     fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        Task { @MainActor in
+            await SyncBridge.shared.sync()
+            completionHandler(.newData)
+        }
     }
 
     /// The partner tapped our share link — accept it, then sync.
     func application(_ application: UIApplication,
                      userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata) {
-        Task {
+        Task { @MainActor in
             await CloudKitService.shared.accept(cloudKitShareMetadata)
             await SyncBridge.shared.sync()
         }

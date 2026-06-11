@@ -21,7 +21,7 @@ done. The other person listens when they're ready.
 ## Tech stack
 
 - **Language**: Swift / SwiftUI
-- **Minimum target**: iOS 17+
+- **Minimum target**: iOS 26+ (raised from 17 to use SpeechAnalyzer on-device)
 - **Audio recording**: AVAudioEngine or AVAudioRecorder
 - **Transcription**: Apple SpeechAnalyzer (on-device, private) — same pattern as Parley
 - **Storage**: SwiftData for local persistence
