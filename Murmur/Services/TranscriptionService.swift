@@ -41,10 +41,21 @@ final class TranscriptionService {
             throw TranscriptionError.unavailable
         }
 
-        let request = SFSpeechURLRecognitionRequest(url: url)
+        // Prefer on-device; if that fails (e.g. model not ready), fall back to
+        // server recognition.
         if recognizer.supportsOnDeviceRecognition {
-            request.requiresOnDeviceRecognition = true
+            do {
+                return try await recognize(url: url, recognizer: recognizer, onDevice: true)
+            } catch {
+                print("Murmur.transcribe: on-device failed (\(error)); trying server")
+            }
         }
+        return try await recognize(url: url, recognizer: recognizer, onDevice: false)
+    }
+
+    private func recognize(url: URL, recognizer: SFSpeechRecognizer, onDevice: Bool) async throws -> String {
+        let request = SFSpeechURLRecognitionRequest(url: url)
+        request.requiresOnDeviceRecognition = onDevice
         request.shouldReportPartialResults = false
 
         let text: String = try await withCheckedThrowingContinuation { continuation in
@@ -60,8 +71,7 @@ final class TranscriptionService {
                 }
             }
         }
-
-        print("Murmur.transcribe: result = \"\(text)\"")
+        print("Murmur.transcribe: result (onDevice=\(onDevice)) = \"\(text)\"")
         return text
     }
 }

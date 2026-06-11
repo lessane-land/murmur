@@ -15,8 +15,9 @@ struct OnboardingView: View {
     @State private var name = ""
     @State private var partnerName = ""
     @State private var partnerEmail = ""
-    @State private var location = PartnerLocation.options.first!
+    @State private var location = PartnerLocation.fallback
     @State private var showContactPicker = false
+    @State private var showLocationPicker = false
 
     private var canContinue: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty &&
@@ -62,6 +63,9 @@ struct OnboardingView: View {
             ContactPicker { contact in apply(contact) }
                 .ignoresSafeArea()
         }
+        .sheet(isPresented: $showLocationPicker) {
+            LocationPickerView { location = $0 }
+        }
     }
 
     private var contactButton: some View {
@@ -95,7 +99,7 @@ struct OnboardingView: View {
             partnerEmail = emailValue as String
         }
         if let city = contact.postalAddresses.first?.value.city,
-           let match = PartnerLocation.options.first(where: { $0.city.caseInsensitiveCompare(city) == .orderedSame }) {
+           let match = PartnerLocation.all.first(where: { $0.city.caseInsensitiveCompare(city) == .orderedSame }) {
             location = match
         }
     }
@@ -185,10 +189,8 @@ struct OnboardingView: View {
     private var locationPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Where they are").murmurOverline()
-            Menu {
-                ForEach(PartnerLocation.options) { option in
-                    Button(option.city) { location = option }
-                }
+            Button {
+                showLocationPicker = true
             } label: {
                 HStack {
                     Image(systemName: "location.fill")
@@ -197,7 +199,7 @@ struct OnboardingView: View {
                         .font(MurmurFont.rounded(17))
                         .foregroundStyle(MurmurColor.inkPrimary)
                     Spacer()
-                    Image(systemName: "chevron.up.chevron.down")
+                    Image(systemName: "chevron.right")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(MurmurColor.inkTertiary)
                 }
@@ -206,6 +208,7 @@ struct OnboardingView: View {
                 .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .strokeBorder(MurmurColor.hairline, lineWidth: 1))
             }
+            .buttonStyle(.plain)
         }
     }
 

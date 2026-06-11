@@ -15,8 +15,12 @@ struct PlayerView: View {
 
     @ObservedObject private var theme = Theme.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @StateObject private var controller = AudioPlayerController()
     @State private var showTranscript = true
+    @State private var isTranscribing = false
+    @State private var transcribeError: String?
+    private let transcriber = TranscriptionService()
 
     private var bars: [Double] { murmur.displayWaveform(barCount: 52) }
     private var partner: String { murmur.isOutgoing ? ProfileStore.shared.partnerName : murmur.senderName }
@@ -183,10 +187,31 @@ struct PlayerView: View {
                             .font(MurmurFont.rounded(11.5)).foregroundStyle(MurmurColor.inkTertiary)
                     }
                     .padding(.top, 16)
+                } else if isTranscribing {
+                    HStack(spacing: 10) {
+                        ProgressView().tint(MurmurColor.accent)
+                        Text("Transcribing on device…")
+                            .font(MurmurFont.display(17)).foregroundStyle(MurmurColor.inkSecondary)
+                    }
+                    .padding(.top, 4)
                 } else {
-                    Text("Transcribing on device…")
-                        .font(MurmurFont.display(17)).foregroundStyle(MurmurColor.inkSecondary)
-                        .padding(.top, 4)
+                    VStack(alignment: .leading, spacing: 12) {
+                        if let transcribeError {
+                            Text(transcribeError)
+                                .font(MurmurFont.rounded(13))
+                                .foregroundStyle(MurmurColor.recordingDot)
+                        }
+                        Button { runTranscription() } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "text.bubble.fill").font(.system(size: 14, weight: .semibold))
+                                Text(transcribeError == nil ? "Transcribe this murmur" : "Try again")
+                                    .font(MurmurFont.rounded(14, weight: .semibold))
+                            }
+                            .foregroundStyle(MurmurColor.accent)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.top, 4)
                 }
             }
 
@@ -224,6 +249,26 @@ struct PlayerView: View {
     private func timeString(_ seconds: Double) -> String {
         let total = Int(seconds.rounded())
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
+    private func runTranscription() {
+        isTranscribing = true
+        transcribeError = nil
+        Task {
+            do {
+                let text = try await transcriber.transcribe(fileURL: murmur.audioFileURL)
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
+                    transcribeError = "No speech detected in this murmur."
+                } else {
+                    murmur.transcript = trimmed
+                    try? modelContext.save()
+                }
+            } catch {
+                transcribeError = "Couldn't transcribe: \((error as NSError).localizedDescription)"
+            }
+            isTranscribing = false
+        }
     }
 }
 

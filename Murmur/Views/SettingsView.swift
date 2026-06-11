@@ -20,6 +20,7 @@ struct SettingsView: View {
     @State private var isPreparingShare = false
     @State private var shareError: String?
     @State private var confirmReset = false
+    @State private var showLocationPicker = false
 
     var body: some View {
         ZStack {
@@ -121,43 +122,30 @@ struct SettingsView: View {
             .buttonStyle(.plain)
             .disabled(isPreparingShare)
 
-            Menu {
-                ForEach(PartnerLocation.options) { option in
-                    Button(option.city) {
-                        profile.partnerCity = option.city
-                        profile.partnerTimeZoneID = option.timeZoneID
-                    }
-                }
+            Button {
+                showLocationPicker = true
             } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: "location.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(MurmurColor.accent)
-                        .frame(width: 44, height: 44)
-                        .background(MurmurColor.surfaceHi, in: Circle())
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("\(profile.partnerName.isEmpty ? "Partner" : profile.partnerName) is in \(profile.partnerCity)")
-                            .font(MurmurFont.rounded(15, weight: .semibold))
-                            .foregroundStyle(MurmurColor.inkPrimary)
-                        Text("\(profile.partnerLocalTime) · \(profile.partnerOffsetLabel)")
-                            .font(MurmurFont.rounded(12))
-                            .foregroundStyle(MurmurColor.inkTertiary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(MurmurColor.inkTertiary)
-                }
-                .padding(14)
-                .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(MurmurColor.hairline, lineWidth: 1))
+                sectionRow(icon: "location.fill",
+                           title: "\(profile.partnerName.isEmpty ? "Partner" : profile.partnerName) is in \(profile.partnerCity)",
+                           subtitle: "\(profile.partnerLocalTime) · \(profile.partnerOffsetLabel)")
             }
+            .buttonStyle(.plain)
+
+            Text("Pairing uses a private CloudKit link — your partner opens it on their iPhone to connect. Needs you both signed into iCloud.")
+                .font(MurmurFont.rounded(11.5))
+                .foregroundStyle(MurmurColor.inkTertiary)
+                .padding(.top, 2)
 
             if let shareError {
                 Text(shareError)
                     .font(MurmurFont.rounded(12))
                     .foregroundStyle(MurmurColor.recordingDot)
+            }
+        }
+        .sheet(isPresented: $showLocationPicker) {
+            LocationPickerView { selected in
+                profile.partnerCity = selected.city
+                profile.partnerTimeZoneID = selected.timeZoneID
             }
         }
     }

@@ -176,6 +176,55 @@ struct BreathingRecordButton: View {
     }
 }
 
+// MARK: - Location picker (searchable, all time zones)
+
+struct LocationPickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+    var onSelect: (PartnerLocation) -> Void
+
+    private var filtered: [PartnerLocation] {
+        guard !query.isEmpty else { return PartnerLocation.all }
+        return PartnerLocation.all.filter {
+            $0.city.localizedCaseInsensitiveContains(query) ||
+            $0.timeZoneID.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List(filtered) { location in
+                Button {
+                    onSelect(location)
+                    dismiss()
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(location.city)
+                            .font(MurmurFont.rounded(16, weight: .medium))
+                            .foregroundStyle(MurmurColor.inkPrimary)
+                        Text(location.timeZoneID.replacingOccurrences(of: "_", with: " "))
+                            .font(MurmurFont.rounded(12))
+                            .foregroundStyle(MurmurColor.inkTertiary)
+                    }
+                }
+                .listRowBackground(MurmurColor.surface)
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(MurmurColor.background)
+            .searchable(text: $query, prompt: "Search any city or region")
+            .navigationTitle("Where is she?")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
 // MARK: - Pulsing rings (recording stop button)
 
 struct PulsingRings: View {

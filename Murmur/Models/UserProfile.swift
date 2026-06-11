@@ -35,8 +35,8 @@ final class ProfileStore: ObservableObject {
         userName = defaults.string(forKey: Key.userName) ?? ""
         partnerName = defaults.string(forKey: Key.partnerName) ?? ""
         partnerEmail = defaults.string(forKey: Key.partnerEmail) ?? ""
-        partnerCity = defaults.string(forKey: Key.partnerCity) ?? PartnerLocation.options.first!.city
-        partnerTimeZoneID = defaults.string(forKey: Key.partnerTZ) ?? PartnerLocation.options.first!.timeZoneID
+        partnerCity = defaults.string(forKey: Key.partnerCity) ?? PartnerLocation.fallback.city
+        partnerTimeZoneID = defaults.string(forKey: Key.partnerTZ) ?? PartnerLocation.fallback.timeZoneID
         avatarColorValue = (defaults.object(forKey: Key.avatarColor) as? Int) ?? Int(MurmurPalette.goldenHour.avatarHex)
     }
 
@@ -97,24 +97,18 @@ final class ProfileStore: ObservableObject {
 struct PartnerLocation: Identifiable, Hashable {
     let city: String
     let timeZoneID: String
-    var id: String { city }
+    var id: String { timeZoneID }
 
-    static let options: [PartnerLocation] = [
-        .init(city: "San Francisco", timeZoneID: "America/Los_Angeles"),
-        .init(city: "Boston", timeZoneID: "America/New_York"),
-        .init(city: "New York", timeZoneID: "America/New_York"),
-        .init(city: "Chicago", timeZoneID: "America/Chicago"),
-        .init(city: "Denver", timeZoneID: "America/Denver"),
-        .init(city: "Mexico City", timeZoneID: "America/Mexico_City"),
-        .init(city: "London", timeZoneID: "Europe/London"),
-        .init(city: "Lisbon", timeZoneID: "Europe/Lisbon"),
-        .init(city: "Madrid", timeZoneID: "Europe/Madrid"),
-        .init(city: "Paris", timeZoneID: "Europe/Paris"),
-        .init(city: "Berlin", timeZoneID: "Europe/Berlin"),
-        .init(city: "Dubai", timeZoneID: "Asia/Dubai"),
-        .init(city: "Mumbai", timeZoneID: "Asia/Kolkata"),
-        .init(city: "Singapore", timeZoneID: "Asia/Singapore"),
-        .init(city: "Tokyo", timeZoneID: "Asia/Tokyo"),
-        .init(city: "Sydney", timeZoneID: "Australia/Sydney"),
-    ]
+    static let fallback = PartnerLocation(city: "San Francisco", timeZoneID: "America/Los_Angeles")
+
+    /// A readable name like "Los Angeles" or "New York" for a time-zone id.
+    static func cityName(for timeZoneID: String) -> String {
+        guard let last = timeZoneID.split(separator: "/").last else { return timeZoneID }
+        return last.replacingOccurrences(of: "_", with: " ")
+    }
+
+    /// Every time zone, as a selectable location (region + city), sorted.
+    static let all: [PartnerLocation] = TimeZone.knownTimeZoneIdentifiers
+        .sorted()
+        .map { PartnerLocation(city: cityName(for: $0), timeZoneID: $0) }
 }
