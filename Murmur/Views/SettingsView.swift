@@ -5,6 +5,8 @@
 //
 
 import SwiftUI
+import CloudKit
+import UIKit
 
 struct SettingsView: View {
     @ObservedObject private var theme = Theme.shared
@@ -13,7 +15,8 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var listModel = MurmurListViewModel()
 
-    @State private var shareURL: URL?
+    @State private var preparedShare: CKShare?
+    @State private var sharePresented = false
     @State private var isPreparingShare = false
     @State private var shareError: String?
     @State private var confirmReset = false
@@ -44,6 +47,12 @@ struct SettingsView: View {
                 listModel.deleteAll(in: modelContext)
             }
             Button("Cancel", role: .cancel) {}
+        }
+        .sheet(isPresented: $sharePresented) {
+            if let preparedShare {
+                CloudSharingView(share: preparedShare, container: CloudKitService.shared.container)
+                    .ignoresSafeArea()
+            }
         }
     }
 
@@ -102,24 +111,15 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Partner").murmurOverline()
 
-            if let url = shareURL {
-                ShareLink(item: url) {
-                    sectionRow(icon: "paperplane.fill",
-                               title: "Send invite to \(profile.partnerName.isEmpty ? "partner" : profile.partnerName)",
-                               subtitle: "Share this link so they can pair")
-                }
-                .buttonStyle(.plain)
-            } else {
-                Button {
-                    prepareShare()
-                } label: {
-                    sectionRow(icon: isPreparingShare ? "ellipsis" : "link",
-                               title: "Connect with \(profile.partnerName.isEmpty ? "partner" : profile.partnerName)",
-                               subtitle: isPreparingShare ? "Preparing invite…" : "Create a private CloudKit link")
-                }
-                .buttonStyle(.plain)
-                .disabled(isPreparingShare)
+            Button {
+                prepareAndPresentShare()
+            } label: {
+                sectionRow(icon: isPreparingShare ? "ellipsis" : "person.crop.circle.badge.plus",
+                           title: "Connect with \(profile.partnerName.isEmpty ? "partner" : profile.partnerName)",
+                           subtitle: isPreparingShare ? "Preparing invite…" : "Invite them to your private murmurs")
             }
+            .buttonStyle(.plain)
+            .disabled(isPreparingShare)
 
             if let shareError {
                 Text(shareError)
@@ -152,14 +152,18 @@ struct SettingsView: View {
             .strokeBorder(MurmurColor.hairline, lineWidth: 1))
     }
 
-    private func prepareShare() {
+    private func prepareAndPresentShare() {
         isPreparingShare = true
         shareError = nil
         Task {
             do {
-                let share = try await CloudKitService.shared.fetchOrCreateShare()
-                shareURL = share.url
-                if shareURL == nil { shareError = "Couldn't get an invite link. Is iCloud signed in?" }
+                guard await CloudKitService.shared.isAccountAvailable() else {
+                    shareError = "Sign in to iCloud to invite your partner."
+                    isPreparingShare = false
+                    return
+                }
+                preparedShare = try await CloudKitService.shared.fetchOrCreateShare()
+                sharePresented = true
             } catch {
                 shareError = error.localizedDescription
             }
@@ -247,6 +251,35 @@ private struct PaletteRow: View {
             )
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - CloudKit sharing controller
+
+/// Wraps UICloudSharingController so the partner can be invited (via Messages,
+/// Mail, etc.) with proper CloudKit read/write permissions on our zone-wide
+/// share.
+struct CloudSharingView: UIViewControllerRepresentable {
+    let share: CKShare
+    let container: CKContainer
+
+    func makeUIViewController(context: Context) -> UICloudSharingController {
+        let controller = UICloudSharingController(share: share, container: container)
+        controller.availablePermissions = [.allowReadWrite, .allowPrivate]
+        controller.delegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ controller: UICloudSharingController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator: NSObject, UICloudSharingControllerDelegate {
+        func cloudSharingController(_ csc: UICloudSharingController, failedToSaveShareWithError error: Error) {
+            print("Murmur: share save failed — \(error)")
+        }
+        func itemTitle(for csc: UICloudSharingController) -> String? { "Our Murmurs" }
+        func itemThumbnailData(for csc: UICloudSharingController) -> Data? { nil }
     }
 }
 
