@@ -91,7 +91,9 @@ struct OnboardingView: View {
     private func apply(_ contact: CNContact) {
         let resolvedName = contact.nickname.isEmpty ? contact.givenName : contact.nickname
         if !resolvedName.isEmpty { partnerName = resolvedName }
-        if let email = contact.emailAddresses.first?.value as String? { partnerEmail = email }
+        if let emailValue = contact.emailAddresses.first?.value {
+            partnerEmail = emailValue as String
+        }
         if let city = contact.postalAddresses.first?.value.city,
            let match = PartnerLocation.options.first(where: { $0.city.caseInsensitiveCompare(city) == .orderedSame }) {
             location = match
