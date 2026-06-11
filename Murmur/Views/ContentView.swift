@@ -1,7 +1,8 @@
 //
 //  ContentView.swift
-//  The home screen: the murmur inbox (newest first), a record button, and a
-//  settings panel. Tap a row to expand its inline player; swipe to delete.
+//  The home screen: the murmur inbox grouped by day (newest first), a partner
+//  header, a record button, and a settings panel. Tap a row to expand its
+//  inline player; swipe to delete.
 //
 
 import SwiftUI
@@ -25,6 +26,7 @@ struct ContentView: View {
 
             VStack(spacing: 0) {
                 header
+                if !profile.partnerName.isEmpty { partnerHeader }
                 if murmurs.isEmpty {
                     emptyState
                 } else {
@@ -54,14 +56,9 @@ struct ContentView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Murmur")
-                    .font(MurmurFont.wordmark(34))
-                    .foregroundStyle(MurmurColor.inkPrimary)
-                Text(murmurs.isEmpty ? "no murmurs yet" : "\(murmurs.count) murmurs")
-                    .font(MurmurFont.rounded(13))
-                    .foregroundStyle(MurmurColor.inkTertiary)
-            }
+            Text("Murmur")
+                .font(MurmurFont.wordmark(34))
+                .foregroundStyle(MurmurColor.inkPrimary)
             Spacer()
             Button {
                 showSettings = true
@@ -77,7 +74,40 @@ struct ContentView: View {
         }
         .padding(.horizontal, 24)
         .padding(.top, 12)
-        .padding(.bottom, 18)
+        .padding(.bottom, 14)
+    }
+
+    // MARK: Partner header
+
+    private var partnerHeader: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(MurmurColor.accentGradient).frame(width: 38, height: 38)
+                Text(String(profile.partnerName.first ?? "?").uppercased())
+                    .font(MurmurFont.display(16, weight: .medium))
+                    .foregroundStyle(MurmurColor.background)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(profile.partnerName)
+                    .font(MurmurFont.rounded(15, weight: .semibold))
+                    .foregroundStyle(MurmurColor.inkPrimary)
+                Text(unplayedCount > 0 ? "\(unplayedCount) new murmur\(unplayedCount == 1 ? "" : "s")"
+                                       : "across the distance")
+                    .font(MurmurFont.rounded(12))
+                    .foregroundStyle(unplayedCount > 0 ? MurmurColor.accent : MurmurColor.inkTertiary)
+            }
+            Spacer()
+            Image(systemName: "moon.stars.fill")
+                .font(.system(size: 14))
+                .foregroundStyle(MurmurColor.inkTertiary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .strokeBorder(MurmurColor.hairline, lineWidth: 1))
+        .padding(.horizontal, 20)
+        .padding(.bottom, 8)
     }
 
     // MARK: Empty state
@@ -100,41 +130,57 @@ struct ContentView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: Inbox list
+    // MARK: Inbox list (grouped by day)
 
     private var inbox: some View {
         List {
-            ForEach(murmurs) { murmur in
-                VStack(spacing: 10) {
-                    MurmurRow(murmur: murmur,
-                              isExpanded: expandedID == murmur.id,
-                              avatarColor: murmur.isOutgoing ? profile.avatarColor : nil)
-                        .contentShape(Rectangle())
-                        .onTapGesture { toggle(murmur) }
-
-                    if expandedID == murmur.id {
-                        PlayerView(murmur: murmur) {
-                            listModel.markPlayed(murmur, in: modelContext)
-                        }
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+            ForEach(groupedMurmurs, id: \.day) { group in
+                Section {
+                    ForEach(group.items) { murmur in
+                        row(for: murmur)
                     }
+                } header: {
+                    Text(group.label)
+                        .font(MurmurFont.rounded(12, weight: .semibold))
+                        .tracking(0.8)
+                        .textCase(.uppercase)
+                        .foregroundStyle(MurmurColor.inkTertiary)
                 }
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    Button(role: .destructive) {
-                        pendingDelete = murmur
-                    } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
-                }
+                .listSectionSeparator(.hidden)
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .safeAreaPadding(.bottom, 120)
         .refreshable { await SyncBridge.shared.sync() }
+    }
+
+    @ViewBuilder
+    private func row(for murmur: Murmur) -> some View {
+        VStack(spacing: 10) {
+            MurmurRow(murmur: murmur,
+                      isExpanded: expandedID == murmur.id,
+                      avatarColor: murmur.isOutgoing ? profile.avatarColor : nil)
+                .contentShape(Rectangle())
+                .onTapGesture { toggle(murmur) }
+
+            if expandedID == murmur.id {
+                PlayerView(murmur: murmur) {
+                    listModel.markPlayed(murmur, in: modelContext)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                pendingDelete = murmur
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
     }
 
     // MARK: Mic button
@@ -155,6 +201,35 @@ struct ContentView: View {
             .buttonStyle(.plain)
             .padding(.bottom, 36)
         }
+    }
+
+    // MARK: Grouping
+
+    private struct DayGroup {
+        let day: Date
+        let label: String
+        let items: [Murmur]
+    }
+
+    private var groupedMurmurs: [DayGroup] {
+        let calendar = Calendar.current
+        let groups = Dictionary(grouping: murmurs) { calendar.startOfDay(for: $0.createdAt) }
+        return groups.keys.sorted(by: >).map { day in
+            DayGroup(day: day, label: Self.dayLabel(for: day), items: groups[day] ?? [])
+        }
+    }
+
+    private var unplayedCount: Int {
+        murmurs.filter { !$0.isOutgoing && !$0.isPlayed }.count
+    }
+
+    private static func dayLabel(for day: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(day) { return "Today" }
+        if calendar.isDateInYesterday(day) { return "Yesterday" }
+        let daysAgo = calendar.dateComponents([.day], from: day, to: Date()).day ?? 0
+        if daysAgo < 7 { return day.formatted(.dateTime.weekday(.wide)) }
+        return day.formatted(.dateTime.month(.abbreviated).day())
     }
 
     // MARK: Helpers
@@ -199,14 +274,14 @@ private struct MurmurRow: View {
                 Text(murmur.senderName)
                     .font(MurmurFont.rounded(15, weight: .semibold))
                     .foregroundStyle(MurmurColor.inkPrimary)
-                Text(murmur.createdAt, format: .dateTime.weekday().hour().minute())
+                Text(Self.timeLabel(for: murmur.createdAt))
                     .font(MurmurFont.rounded(12))
                     .foregroundStyle(MurmurColor.inkTertiary)
             }
 
             Spacer()
 
-            if !murmur.isPlayed {
+            if !murmur.isPlayed && !murmur.isOutgoing {
                 Circle()
                     .fill(MurmurColor.accent)
                     .frame(width: 8, height: 8)
@@ -221,6 +296,15 @@ private struct MurmurRow: View {
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
             .strokeBorder(isExpanded ? MurmurColor.accent.opacity(0.5) : MurmurColor.hairline,
                           lineWidth: isExpanded ? 1.5 : 1))
+    }
+
+    /// Relative for recent murmurs, otherwise the time of day.
+    private static func timeLabel(for date: Date) -> String {
+        let seconds = Date().timeIntervalSince(date)
+        if seconds < 60 { return "just now" }
+        if seconds < 3600 { return "\(Int(seconds / 60))m ago" }
+        if Calendar.current.isDateInToday(date) { return "\(Int(seconds / 3600))h ago" }
+        return date.formatted(.dateTime.hour().minute())
     }
 }
 
