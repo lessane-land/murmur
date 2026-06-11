@@ -51,8 +51,7 @@ struct PlayerView: View {
     private var header: some View {
         HStack(spacing: 12) {
             GlassButton(systemName: "chevron.left", tint: MurmurColor.inkPrimary) { dismiss() }
-            MurmurAvatar(initial: murmur.avatarInitial, size: 34,
-                         solidColor: murmur.isOutgoing ? ProfileStore.shared.avatarColor : nil)
+            MurmurAvatar(initial: murmur.avatarInitial, size: 34)
             VStack(alignment: .leading, spacing: 1) {
                 Text(murmur.isOutgoing ? "You" : murmur.senderName)
                     .font(MurmurFont.rounded(15, weight: .semibold))

@@ -87,7 +87,7 @@ struct SettingsView: View {
     private var profileSummary: some View {
         HStack(spacing: 14) {
             ZStack {
-                Circle().fill(profile.avatarColor).frame(width: 52, height: 52)
+                Circle().fill(MurmurColor.accentGradient).frame(width: 52, height: 52)
                 Text(String(profile.userName.first ?? "?").uppercased())
                     .font(MurmurFont.display(22, weight: .medium))
                     .foregroundStyle(MurmurColor.background)
