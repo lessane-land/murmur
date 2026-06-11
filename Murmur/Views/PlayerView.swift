@@ -20,6 +20,7 @@ struct PlayerView: View {
     @State private var showTranscript = true
     @State private var isTranscribing = false
     @State private var transcribeError: String?
+    @State private var confirmDelete = false
     private let transcriber = TranscriptionService()
 
     private var bars: [Double] { murmur.displayWaveform(barCount: 52) }
@@ -68,9 +69,14 @@ struct PlayerView: View {
                     .foregroundStyle(MurmurColor.inkTertiary)
             }
             Spacer()
+            GlassButton(systemName: "trash", tint: MurmurColor.inkSecondary) { confirmDelete = true }
         }
         .padding(.horizontal, 18)
         .padding(.top, 8)
+        .confirmationDialog("Delete this murmur?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { deleteMurmur() }
+            Button("Cancel", role: .cancel) {}
+        }
     }
 
     // MARK: Player card
@@ -251,6 +257,14 @@ struct PlayerView: View {
     private func timeString(_ seconds: Double) -> String {
         let total = Int(seconds.rounded())
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
+    private func deleteMurmur() {
+        controller.stop()
+        try? FileManager.default.removeItem(at: murmur.audioFileURL)
+        modelContext.delete(murmur)
+        try? modelContext.save()
+        dismiss()
     }
 
     private func runTranscription() {
