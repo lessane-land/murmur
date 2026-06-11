@@ -1,7 +1,7 @@
 //
 //  ContentView.swift
-//  The home surface. Phase 1: lists saved murmurs and exposes a mic button that
-//  opens the recording sheet.
+//  The home screen: the murmur inbox (newest first), a record button, and a
+//  settings panel. Tap a row to expand its inline player; swipe to delete.
 //
 
 import SwiftUI
@@ -10,10 +10,13 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var theme = Theme.shared
+    @StateObject private var listModel = MurmurListViewModel()
     @Query(sort: \Murmur.createdAt, order: .reverse) private var murmurs: [Murmur]
 
     @State private var showRecorder = false
     @State private var showSettings = false
+    @State private var expandedID: UUID?
+    @State private var pendingDelete: Murmur?
 
     var body: some View {
         ZStack {
@@ -21,34 +24,40 @@ struct ContentView: View {
 
             VStack(spacing: 0) {
                 header
-
                 if murmurs.isEmpty {
                     emptyState
                 } else {
-                    list
+                    inbox
                 }
             }
 
             micButton
         }
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $showRecorder) {
-            RecordView()
-        }
-        .sheet(isPresented: $showSettings) {
-            SettingsView()
+        .sheet(isPresented: $showRecorder) { RecordView() }
+        .sheet(isPresented: $showSettings) { SettingsView() }
+        .confirmationDialog("Delete this murmur?",
+                            isPresented: deleteDialogBinding,
+                            titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                if let murmur = pendingDelete {
+                    listModel.delete(murmur, in: modelContext)
+                }
+                pendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
         }
     }
 
     // MARK: Header
 
     private var header: some View {
-        HStack {
+        HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("murmur")
-                    .font(MurmurFont.rounded(30, weight: .bold))
+                Text("Murmur")
+                    .font(MurmurFont.wordmark(34))
                     .foregroundStyle(MurmurColor.inkPrimary)
-                Text("\(murmurs.count) recorded")
+                Text(murmurs.isEmpty ? "no murmurs yet" : "\(murmurs.count) murmurs")
                     .font(MurmurFont.rounded(13))
                     .foregroundStyle(MurmurColor.inkTertiary)
             }
@@ -67,7 +76,7 @@ struct ContentView: View {
         }
         .padding(.horizontal, 24)
         .padding(.top, 12)
-        .padding(.bottom, 20)
+        .padding(.bottom, 18)
     }
 
     // MARK: Empty state
@@ -79,7 +88,7 @@ struct ContentView: View {
                 .font(.system(size: 44, weight: .light))
                 .foregroundStyle(MurmurColor.accent)
             Text("No murmurs yet")
-                .font(MurmurFont.rounded(18, weight: .semibold))
+                .font(MurmurFont.display(20, weight: .medium))
                 .foregroundStyle(MurmurColor.inkSecondary)
             Text("Tap the mic to leave your first one.")
                 .font(MurmurFont.rounded(14))
@@ -90,18 +99,38 @@ struct ContentView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: List
+    // MARK: Inbox list
 
-    private var list: some View {
-        ScrollView {
-            LazyVStack(spacing: 12) {
-                ForEach(murmurs) { murmur in
-                    MurmurRow(murmur: murmur)
+    private var inbox: some View {
+        List {
+            ForEach(murmurs) { murmur in
+                VStack(spacing: 10) {
+                    MurmurRow(murmur: murmur, isExpanded: expandedID == murmur.id)
+                        .contentShape(Rectangle())
+                        .onTapGesture { toggle(murmur) }
+
+                    if expandedID == murmur.id {
+                        PlayerView(murmur: murmur) {
+                            listModel.markPlayed(murmur, in: modelContext)
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(role: .destructive) {
+                        pendingDelete = murmur
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 140)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .safeAreaPadding(.bottom, 120)
     }
 
     // MARK: Mic button
@@ -123,31 +152,54 @@ struct ContentView: View {
             .padding(.bottom, 36)
         }
     }
+
+    // MARK: Helpers
+
+    private var deleteDialogBinding: Binding<Bool> {
+        Binding(get: { pendingDelete != nil },
+                set: { if !$0 { pendingDelete = nil } })
+    }
+
+    private func toggle(_ murmur: Murmur) {
+        withAnimation(.easeInOut(duration: 0.22)) {
+            expandedID = (expandedID == murmur.id) ? nil : murmur.id
+        }
+    }
 }
 
 // MARK: - Row
 
 private struct MurmurRow: View {
     let murmur: Murmur
+    let isExpanded: Bool
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: "waveform")
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(MurmurColor.accent)
-                .frame(width: 44, height: 44)
-                .background(MurmurColor.surfaceHi, in: Circle())
+            ZStack {
+                Circle()
+                    .fill(MurmurColor.accentGradient)
+                    .frame(width: 44, height: 44)
+                Text(murmur.avatarInitial)
+                    .font(MurmurFont.display(18, weight: .medium))
+                    .foregroundStyle(MurmurColor.background)
+            }
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(murmur.createdAt, format: .dateTime.weekday().hour().minute())
+                Text(murmur.senderName)
                     .font(MurmurFont.rounded(15, weight: .semibold))
                     .foregroundStyle(MurmurColor.inkPrimary)
-                Text(murmur.isFromMe ? "You" : "Partner")
+                Text(murmur.createdAt, format: .dateTime.weekday().hour().minute())
                     .font(MurmurFont.rounded(12))
                     .foregroundStyle(MurmurColor.inkTertiary)
             }
 
             Spacer()
+
+            if !murmur.isPlayed {
+                Circle()
+                    .fill(MurmurColor.accent)
+                    .frame(width: 8, height: 8)
+            }
 
             Text(murmur.durationLabel)
                 .font(MurmurFont.rounded(14, weight: .medium).monospacedDigit())
@@ -156,7 +208,8 @@ private struct MurmurRow: View {
         .padding(14)
         .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-            .strokeBorder(MurmurColor.hairline, lineWidth: 1))
+            .strokeBorder(isExpanded ? MurmurColor.accent.opacity(0.5) : MurmurColor.hairline,
+                          lineWidth: isExpanded ? 1.5 : 1))
     }
 }
 

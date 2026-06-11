@@ -2,13 +2,15 @@
 //  Theme.swift
 //  Murmur — design tokens.
 //
-//  Three palettes ship and are switchable at runtime from Settings: Aurora
-//  (default), Golden Hour, Deep Ocean. The active palette lives on
-//  `Theme.shared`, is persisted across launches, and any view observing it
-//  recolors instantly. Neutral inks/surfaces are constant across palettes.
+//  Per CLAUDE.md the core aesthetic is a warm "candlelight" dark with a dusty
+//  rose / terracotta accent. Three palettes ship and are switchable at runtime
+//  from Settings; the default (Golden Hour) matches CLAUDE.md's warm dark
+//  (#1A1714) + dusty rose (#C97D6E). Aurora and Deep Ocean are cooler
+//  alternates. The active palette lives on `Theme.shared`, persists across
+//  launches, and any view observing it recolors instantly.
 //
-//  Typography is SF Pro Rounded throughout. All colors and fonts are accessed
-//  through `MurmurColor` / `MurmurFont` so views never touch raw values.
+//  Typography follows CLAUDE.md: New York (Apple serif) for display — the
+//  wordmark and the recording timer — and SF Pro Rounded for body / UI.
 //
 
 import SwiftUI
@@ -25,28 +27,29 @@ struct MurmurPalette: Identifiable, Equatable {
     let backgroundWell: Color
     let recordingDot: Color
 
-    /// Aurora — orchid → periwinkle on a cool near-black. The default.
+    /// Golden Hour — warm candlelight dark with a dusty rose / terracotta
+    /// accent. The default; matches CLAUDE.md's stated design language.
+    static let goldenHour = MurmurPalette(
+        id: "golden", name: "Golden Hour",
+        accentStart: Color(hex: 0xE0A07E), accentMid: Color(hex: 0xC97D6E), accentEnd: Color(hex: 0xB4655C),
+        background: Color(hex: 0x1A1714), backgroundWell: Color(hex: 0x110E0C),
+        recordingDot: Color(hex: 0xD97F6E))
+
+    /// Aurora — orchid → periwinkle on a cool near-black.
     static let aurora = MurmurPalette(
         id: "aurora", name: "Aurora",
         accentStart: Color(hex: 0xC97DF0), accentMid: Color(hex: 0x9B8DF7), accentEnd: Color(hex: 0x7B9FFF),
-        background: Color(hex: 0x0A0A12), backgroundWell: Color(hex: 0x06060C),
+        background: Color(hex: 0x0E0C14), backgroundWell: Color(hex: 0x08070C),
         recordingDot: Color(hex: 0xFF5B7F))
-
-    /// Golden Hour — terracotta → magenta on a warm near-black.
-    static let goldenHour = MurmurPalette(
-        id: "golden", name: "Golden Hour",
-        accentStart: Color(hex: 0xE07840), accentMid: Color(hex: 0xDF5A56), accentEnd: Color(hex: 0xDC4070),
-        background: Color(hex: 0x140A0B), backgroundWell: Color(hex: 0x0C0506),
-        recordingDot: Color(hex: 0xFF6F91))
 
     /// Deep Ocean — teal → cobalt on a cool near-black.
     static let deepOcean = MurmurPalette(
         id: "ocean", name: "Deep Ocean",
         accentStart: Color(hex: 0x1AD4B8), accentMid: Color(hex: 0x19A2CC), accentEnd: Color(hex: 0x1870E0),
-        background: Color(hex: 0x06101A), backgroundWell: Color(hex: 0x040A11),
+        background: Color(hex: 0x081016), backgroundWell: Color(hex: 0x040A0F),
         recordingDot: Color(hex: 0x4FD6C0))
 
-    static let all: [MurmurPalette] = [.aurora, .goldenHour, .deepOcean]
+    static let all: [MurmurPalette] = [.goldenHour, .aurora, .deepOcean]
 
     var gradient: LinearGradient {
         LinearGradient(colors: [accentStart, accentMid, accentEnd],
@@ -68,7 +71,7 @@ final class Theme: ObservableObject {
 
     private init() {
         let savedID = UserDefaults.standard.string(forKey: Self.storageKey)
-        palette = MurmurPalette.all.first { $0.id == savedID } ?? .aurora
+        palette = MurmurPalette.all.first { $0.id == savedID } ?? .goldenHour
     }
 
     func select(_ palette: MurmurPalette) {
@@ -92,33 +95,44 @@ enum MurmurColor {
     static var recordingDot: Color { p.recordingDot }
     static var accentGradient: LinearGradient { p.gradient }
 
-    // Constant neutrals
+    // Constant neutrals (warm-leaning inks read well on every palette).
     static let surface = Color.white.opacity(0.05)
-    static let surfaceHi = Color.white.opacity(0.07)
+    static let surfaceHi = Color.white.opacity(0.08)
     static let hairline = Color.white.opacity(0.08)
     static let hairlineStrong = Color.white.opacity(0.14)
-    static let inkPrimary = Color(hex: 0xF3F1FA)
-    static let inkSecondary = Color(hex: 0xA8A4BE)
-    static let inkTertiary = Color(hex: 0x6A6783)
+    static let inkPrimary = Color(hex: 0xF4EFEA)
+    static let inkSecondary = Color(hex: 0xB8ACA4)
+    static let inkTertiary = Color(hex: 0x7E7268)
 }
 
-// MARK: - Typography (SF Pro Rounded)
+// MARK: - Typography
 
 enum MurmurFont {
+    /// SF Pro Rounded — body and UI labels.
     static func rounded(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
         .system(size: size, weight: weight, design: .rounded)
     }
 
-    /// Large monospaced-digit timer face.
+    /// New York serif — display text.
+    static func display(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .system(size: size, weight: weight, design: .serif)
+    }
+
+    /// Serif italic wordmark — feels personal, like handwriting's dignified cousin.
+    static func wordmark(_ size: CGFloat) -> Font {
+        .system(size: size, weight: .semibold, design: .serif).italic()
+    }
+
+    /// Large serif monospaced-digit recording timer.
     static func timer(_ size: CGFloat = 60) -> Font {
-        .system(size: size, weight: .medium, design: .rounded).monospacedDigit()
+        .system(size: size, weight: .regular, design: .serif).monospacedDigit()
     }
 }
 
 // MARK: - Helpers
 
 extension Color {
-    /// Hex literal initialiser, e.g. `Color(hex: 0xC58B9B)`.
+    /// Hex literal initialiser, e.g. `Color(hex: 0xC97D6E)`.
     init(hex: UInt32, alpha: Double = 1) {
         self.init(.sRGB,
                   red: Double((hex >> 16) & 0xFF) / 255,

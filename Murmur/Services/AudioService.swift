@@ -28,6 +28,9 @@ final class AudioService: ObservableObject {
     private var startDate: Date?
     private var timer: Timer?
 
+    /// Every captured level, used to build a downsampled waveform on stop.
+    private var capturedLevels: [CGFloat] = []
+
     // MARK: Permission
 
     /// Requests microphone access (iOS 17 API). Returns whether it was granted.
@@ -74,9 +77,26 @@ final class AudioService: ObservableObject {
         audioFile = file
         currentURL = url
         startDate = Date()
+        capturedLevels.removeAll(keepingCapacity: true)
         isRecording = true
         elapsed = 0
         startTimer()
+    }
+
+    /// Downsamples the captured levels into `bars` normalised 0...1 values for
+    /// storage on the Murmur. Call before `stopRecording` clears state.
+    func waveformSnapshot(bars: Int = 48) -> [Double] {
+        guard !capturedLevels.isEmpty else { return [] }
+        let chunk = max(1, capturedLevels.count / bars)
+        var out: [Double] = []
+        var index = 0
+        while index < capturedLevels.count && out.count < bars {
+            let slice = capturedLevels[index..<min(index + chunk, capturedLevels.count)]
+            let avg = slice.reduce(0, +) / CGFloat(slice.count)
+            out.append(Double(max(0.12, avg)))
+            index += chunk
+        }
+        return out
     }
 
     /// Stops the engine and returns the finished file's URL (nil if not recording).
@@ -135,6 +155,7 @@ final class AudioService: ObservableObject {
             guard let self else { return }
             // Light smoothing so the ring breathes rather than jitters.
             self.level = self.level * 0.7 + CGFloat(normalized) * 0.3
+            if self.isRecording { self.capturedLevels.append(self.level) }
         }
     }
 

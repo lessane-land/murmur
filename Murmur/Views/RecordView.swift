@@ -1,7 +1,7 @@
 //
 //  RecordView.swift
 //  The recording sheet — a big tap-to-record button with a pulsing ring while
-//  live, a rounded serifless timer, and Save / Cancel.
+//  live, a serif timer, and Save / Cancel. Backed by RecordViewModel.
 //
 
 import SwiftUI
@@ -12,12 +12,10 @@ struct RecordView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var theme = Theme.shared
 
-    @StateObject private var audio = AudioService()
-    @State private var permissionDenied = false
+    @StateObject private var model = RecordViewModel()
 
     var body: some View {
         ZStack {
-            // Warm dark canvas with a soft rose glow up top.
             RadialGradient(colors: [MurmurColor.accentDeep.opacity(0.22),
                                     MurmurColor.background],
                            center: .init(x: 0.5, y: 0.12),
@@ -34,8 +32,11 @@ struct RecordView: View {
             .padding(.top, 16)
         }
         .preferredColorScheme(.dark)
-        .alert("Microphone access needed",
-               isPresented: $permissionDenied) {
+        .onChange(of: model.elapsed) { _, _ in
+            // Enforce the 3-minute maximum.
+            if model.reachedMax && model.isRecording { save() }
+        }
+        .alert("Microphone access needed", isPresented: $model.permissionDenied) {
             Button("OK", role: .cancel) { dismiss() }
         } message: {
             Text("Enable microphone access in Settings to record murmurs.")
@@ -48,13 +49,13 @@ struct RecordView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("new murmur").murmurOverline()
-                Text(audio.isRecording ? "listening…" : "tap to record")
+                Text(model.isRecording ? "listening…" : "tap to record")
                     .font(MurmurFont.rounded(16, weight: .semibold))
                     .foregroundStyle(MurmurColor.inkPrimary)
             }
             Spacer()
             Button {
-                audio.cancelRecording()
+                model.cancel()
                 dismiss()
             } label: {
                 Image(systemName: "xmark")
@@ -72,11 +73,17 @@ struct RecordView: View {
     // MARK: Center stage
 
     private var centerStage: some View {
-        VStack(spacing: 40) {
-            Text(timeLabel)
-                .font(MurmurFont.timer(64))
-                .foregroundStyle(MurmurColor.inkPrimary)
-                .contentTransition(.numericText())
+        VStack(spacing: 36) {
+            VStack(spacing: 8) {
+                Text(model.elapsedLabel)
+                    .font(MurmurFont.timer(66))
+                    .foregroundStyle(MurmurColor.inkPrimary)
+                    .contentTransition(.numericText())
+                Text("up to 3:00")
+                    .font(MurmurFont.rounded(12))
+                    .foregroundStyle(MurmurColor.inkTertiary)
+                    .opacity(model.isRecording ? 1 : 0)
+            }
 
             recordButton
         }
@@ -84,8 +91,8 @@ struct RecordView: View {
 
     private var recordButton: some View {
         ZStack {
-            if audio.isRecording {
-                PulsingRing(level: audio.level)
+            if model.isRecording {
+                PulsingRing(level: model.level)
             }
 
             Button(action: toggleRecording) {
@@ -100,8 +107,8 @@ struct RecordView: View {
                         .frame(width: 96, height: 96)
                         .shadow(color: MurmurColor.accentDeep.opacity(0.55), radius: 18, y: 8)
 
-                    Image(systemName: audio.isRecording ? "stop.fill" : "mic.fill")
-                        .font(.system(size: audio.isRecording ? 34 : 40, weight: .medium))
+                    Image(systemName: model.isRecording ? "stop.fill" : "mic.fill")
+                        .font(.system(size: model.isRecording ? 34 : 40, weight: .medium))
                         .foregroundStyle(MurmurColor.background)
                         .contentTransition(.symbolEffect(.replace))
                 }
@@ -116,7 +123,7 @@ struct RecordView: View {
     private var controls: some View {
         HStack {
             Button("Cancel") {
-                audio.cancelRecording()
+                model.cancel()
                 dismiss()
             }
             .font(MurmurFont.rounded(16, weight: .medium))
@@ -126,46 +133,25 @@ struct RecordView: View {
 
             Button("Save") { save() }
                 .font(MurmurFont.rounded(16, weight: .semibold))
-                .foregroundStyle(audio.isRecording || audio.elapsed > 0
-                                 ? MurmurColor.accentSoft : MurmurColor.inkTertiary)
-                .disabled(!audio.isRecording && audio.elapsed == 0)
+                .foregroundStyle(model.isRecording ? MurmurColor.accentSoft : MurmurColor.inkTertiary)
+                .disabled(!model.isRecording)
         }
         .padding(.horizontal, 32)
         .padding(.bottom, 44)
     }
 
-    // MARK: Helpers
-
-    private var timeLabel: String {
-        let total = Int(audio.elapsed)
-        return String(format: "%d:%02d", total / 60, total % 60)
-    }
+    // MARK: Actions
 
     private func toggleRecording() {
-        if audio.isRecording {
+        if model.isRecording {
             save()
         } else {
-            Task {
-                guard await audio.requestPermission() else {
-                    permissionDenied = true
-                    return
-                }
-                do {
-                    try audio.startRecording()
-                } catch {
-                    print("Murmur: failed to start recording — \(error)")
-                }
-            }
+            Task { await model.startRecording() }
         }
     }
 
     private func save() {
-        let duration = audio.elapsed
-        guard let url = audio.stopRecording() else { return }
-
-        let murmur = Murmur(audioFileName: url.lastPathComponent, duration: duration)
-        modelContext.insert(murmur)
-        try? modelContext.save()
+        model.finish(in: modelContext)
         dismiss()
     }
 }
@@ -182,7 +168,6 @@ private struct PulsingRing: View {
             ForEach(0..<3) { index in
                 Ring(delay: Double(index) * 0.7)
             }
-            // Inner halo that swells with loudness.
             Circle()
                 .fill(MurmurColor.recordingDot.opacity(0.18))
                 .frame(width: 130, height: 130)
