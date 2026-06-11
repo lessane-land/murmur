@@ -46,7 +46,15 @@ final class CloudKitService {
             return false
         }
         let status = (try? await container.accountStatus()) ?? .couldNotDetermine
-        print("Murmur.sync: iCloud account status = \(status.rawValue) (3 = available)")
+        let label: String
+        switch status {
+        case .available: label = "available"
+        case .noAccount: label = "NO iCloud account — sign in"
+        case .restricted: label = "restricted"
+        case .temporarilyUnavailable: label = "temporarily unavailable"
+        default: label = "could not determine"
+        }
+        print("Murmur.sync: iCloud status = \(label)")
         return status == .available
     }
 
