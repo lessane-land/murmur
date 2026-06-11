@@ -247,12 +247,12 @@ private struct MurmurBubble: View {
         HStack(spacing: 12) {
             playAffordance
             VStack(alignment: .leading, spacing: 7) {
-                WaveformView(bars: murmur.displayWaveform(barCount: 32),
-                             progress: progress, height: 28, barWidth: 2.5, gap: 2, minHeight: 3,
+                // 22 bars at 3 + 2.5 gap ≈ 118pt — sized to fit, no overflow.
+                WaveformView(bars: murmur.displayWaveform(barCount: 22),
+                             progress: progress, height: 30, barWidth: 3, gap: 2.5, minHeight: 3,
                              activeStyle: mine ? AnyShapeStyle(MurmurColor.inkSecondary)
                                                : AnyShapeStyle(MurmurColor.accentGradient),
                              inactiveColor: mine ? .white.opacity(0.14) : MurmurColor.waveInactive)
-                    .frame(width: 120)
                 meta
             }
         }

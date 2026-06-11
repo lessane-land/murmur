@@ -96,17 +96,30 @@ extension Murmur {
         String(senderName.first ?? "?").uppercased()
     }
 
-    /// Stable waveform bars for display — uses the captured waveform when
-    /// present, otherwise a deterministic synthetic one seeded by the id.
+    /// Stable waveform bars for display, resampled to exactly `barCount` — uses
+    /// the captured waveform when present, otherwise a deterministic synthetic
+    /// one seeded by the id.
     func displayWaveform(barCount: Int = 48) -> [Double] {
-        if let waveform, !waveform.isEmpty { return waveform }
-        return Waveform.synthetic(seed: id.hashValue, count: barCount)
+        let source = (waveform?.isEmpty == false) ? waveform!
+                                                  : Waveform.synthetic(seed: id.hashValue, count: barCount)
+        return Waveform.resample(source, to: barCount)
     }
 }
 
 // MARK: - Deterministic waveform synthesis
 
 enum Waveform {
+    /// Resamples `values` to exactly `count` bars (nearest-neighbour). Keeps
+    /// display widths predictable regardless of how many samples were captured.
+    static func resample(_ values: [Double], to count: Int) -> [Double] {
+        guard !values.isEmpty, count > 0 else { return [] }
+        guard values.count != count else { return values }
+        return (0..<count).map { i in
+            let index = min(values.count - 1, Int(Double(i) / Double(count) * Double(values.count)))
+            return values[index]
+        }
+    }
+
     /// Stable pseudo-random bars for a given seed with a gentle speech-like
     /// envelope so the ends taper. Used as a fallback when no real waveform was
     /// captured.
