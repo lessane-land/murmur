@@ -42,6 +42,16 @@ final class Murmur {
     /// Optional so rows without a stored waveform still decode.
     var waveform: [Double]?
 
+    // MARK: CloudKit sync metadata
+
+    /// The CloudKit record name once synced; nil until uploaded / for purely
+    /// local rows. Also used to de-duplicate incoming records.
+    var ckRecordName: String?
+
+    /// True once this murmur has been pushed to (outgoing) or pulled from
+    /// (incoming) CloudKit. Outgoing murmurs start false and are uploaded later.
+    var isUploaded: Bool
+
     init(id: UUID = UUID(),
          senderName: String,
          audioFileName: String,
@@ -50,7 +60,9 @@ final class Murmur {
          createdAt: Date = .now,
          isPlayed: Bool = false,
          isOutgoing: Bool = true,
-         waveform: [Double]? = nil) {
+         waveform: [Double]? = nil,
+         ckRecordName: String? = nil,
+         isUploaded: Bool = false) {
         self.id = id
         self.senderName = senderName
         self.audioFileName = audioFileName
@@ -60,6 +72,8 @@ final class Murmur {
         self.isPlayed = isPlayed
         self.isOutgoing = isOutgoing
         self.waveform = waveform
+        self.ckRecordName = ckRecordName
+        self.isUploaded = isUploaded
     }
 }
 

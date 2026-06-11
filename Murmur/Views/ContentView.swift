@@ -10,6 +10,7 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var theme = Theme.shared
+    @ObservedObject private var profile = ProfileStore.shared
     @StateObject private var listModel = MurmurListViewModel()
     @Query(sort: \Murmur.createdAt, order: .reverse) private var murmurs: [Murmur]
 
@@ -105,7 +106,9 @@ struct ContentView: View {
         List {
             ForEach(murmurs) { murmur in
                 VStack(spacing: 10) {
-                    MurmurRow(murmur: murmur, isExpanded: expandedID == murmur.id)
+                    MurmurRow(murmur: murmur,
+                              isExpanded: expandedID == murmur.id,
+                              avatarColor: murmur.isOutgoing ? profile.avatarColor : nil)
                         .contentShape(Rectangle())
                         .onTapGesture { toggle(murmur) }
 
@@ -131,6 +134,7 @@ struct ContentView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .safeAreaPadding(.bottom, 120)
+        .refreshable { await SyncBridge.shared.sync() }
     }
 
     // MARK: Mic button
@@ -172,13 +176,20 @@ struct ContentView: View {
 private struct MurmurRow: View {
     let murmur: Murmur
     let isExpanded: Bool
+    /// Outgoing rows use your profile colour; incoming fall back to the palette.
+    var avatarColor: Color?
 
     var body: some View {
         HStack(spacing: 14) {
             ZStack {
-                Circle()
-                    .fill(MurmurColor.accentGradient)
-                    .frame(width: 44, height: 44)
+                Group {
+                    if let avatarColor {
+                        Circle().fill(avatarColor)
+                    } else {
+                        Circle().fill(MurmurColor.accentGradient)
+                    }
+                }
+                .frame(width: 44, height: 44)
                 Text(murmur.avatarInitial)
                     .font(MurmurFont.display(18, weight: .medium))
                     .foregroundStyle(MurmurColor.background)

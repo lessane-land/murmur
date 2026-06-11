@@ -75,7 +75,8 @@ final class RecordViewModel: ObservableObject {
             return false
         }
 
-        let murmur = Murmur(senderName: "You",
+        let myName = ProfileStore.shared.userName
+        let murmur = Murmur(senderName: myName.isEmpty ? "You" : myName,
                             audioFileName: url.lastPathComponent,
                             duration: duration,
                             isOutgoing: true,
@@ -84,6 +85,9 @@ final class RecordViewModel: ObservableObject {
         try? context.save()
 
         transcribe(murmur, in: context)
+        // Push to CloudKit (best-effort; no-ops if iCloud isn't set up). Run
+        // after transcription has a moment so the first sync can include it.
+        Task { await SyncBridge.shared.sync() }
         return true
     }
 
