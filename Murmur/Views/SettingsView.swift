@@ -5,6 +5,8 @@
 //
 
 import SwiftUI
+import CloudKit
+import UIKit
 
 struct SettingsView: View {
     @ObservedObject private var theme = Theme.shared
@@ -15,6 +17,10 @@ struct SettingsView: View {
 
     @State private var confirmClear = false
     @State private var showLocationPicker = false
+    @State private var preparedShare: CKShare?
+    @State private var sharePresented = false
+    @State private var isPreparingShare = false
+    @State private var shareError: String?
 
     var body: some View {
         ZStack {
@@ -24,6 +30,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 28) {
                     youSection
                     partnerSection
+                    syncSection
                     styleSection
                     murmursSection
                     aboutSection
@@ -47,6 +54,85 @@ struct SettingsView: View {
                 profile.partnerCity = selected.city
                 profile.partnerTimeZoneID = selected.timeZoneID
             }
+        }
+        .sheet(isPresented: $sharePresented) {
+            if let preparedShare {
+                CloudSharingView(share: preparedShare, container: CloudKitService.shared.container)
+                    .ignoresSafeArea()
+            }
+        }
+    }
+
+    // MARK: Sync
+
+    private var syncSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Sync").murmurOverline()
+
+            Toggle(isOn: $profile.syncEnabled) {
+                Text("Sync privately with \(profile.partnerName.isEmpty ? "your partner" : profile.partnerName)")
+                    .font(MurmurFont.rounded(15, weight: .semibold))
+                    .foregroundStyle(MurmurColor.inkPrimary)
+            }
+            .tint(MurmurColor.accent)
+            .padding(14)
+            .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(MurmurColor.hairline, lineWidth: 1))
+            .onChange(of: profile.syncEnabled) { _, on in
+                if on { Task { await SyncBridge.shared.bootstrap() } }
+            }
+
+            if profile.syncEnabled {
+                Button { prepareAndPresentShare() } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: isPreparingShare ? "ellipsis" : "person.crop.circle.badge.plus")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(MurmurColor.accent)
+                            .frame(width: 44, height: 44)
+                            .background(MurmurColor.surfaceHi, in: Circle())
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Invite \(profile.partnerName.isEmpty ? "your partner" : profile.partnerName)")
+                                .font(MurmurFont.rounded(15, weight: .semibold))
+                                .foregroundStyle(MurmurColor.inkPrimary)
+                            Text(isPreparingShare ? "Preparing private invite…" : "Send them a private CloudKit invite")
+                                .font(MurmurFont.rounded(12))
+                                .foregroundStyle(MurmurColor.inkTertiary)
+                        }
+                        Spacer()
+                    }
+                    .padding(14)
+                    .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(MurmurColor.hairline, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .disabled(isPreparingShare)
+            }
+
+            if let shareError {
+                Text(shareError).font(MurmurFont.rounded(12)).foregroundStyle(MurmurColor.recordingDot)
+            }
+
+            Text("Both of you turn this on and accept each other's invite. Murmurs then sync privately through iCloud.")
+                .font(MurmurFont.rounded(11.5)).foregroundStyle(MurmurColor.inkTertiary).padding(.top, 2)
+        }
+    }
+
+    private func prepareAndPresentShare() {
+        isPreparingShare = true
+        shareError = nil
+        Task {
+            do {
+                guard await CloudKitService.shared.isAccountAvailable() else {
+                    shareError = "Sign in to iCloud to invite your partner."
+                    isPreparingShare = false
+                    return
+                }
+                preparedShare = try await CloudKitService.shared.fetchOrCreateShare()
+                sharePresented = true
+            } catch {
+                shareError = error.localizedDescription
+            }
+            isPreparingShare = false
         }
     }
 
@@ -225,6 +311,34 @@ private struct PaletteRow: View {
             )
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - CloudKit sharing controller
+
+/// Wraps UICloudSharingController so the partner can be invited (via Messages,
+/// Mail, etc.) with read/write permission on our private zone-wide share.
+struct CloudSharingView: UIViewControllerRepresentable {
+    let share: CKShare
+    let container: CKContainer
+
+    func makeUIViewController(context: Context) -> UICloudSharingController {
+        let controller = UICloudSharingController(share: share, container: container)
+        controller.availablePermissions = [.allowReadWrite, .allowPrivate]
+        controller.delegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ controller: UICloudSharingController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator: NSObject, UICloudSharingControllerDelegate {
+        func cloudSharingController(_ csc: UICloudSharingController, failedToSaveShareWithError error: Error) {
+            print("Murmur: share save failed — \(error)")
+        }
+        func itemTitle(for csc: UICloudSharingController) -> String? { "Our Murmurs" }
+        func itemThumbnailData(for csc: UICloudSharingController) -> Data? { nil }
     }
 }
 

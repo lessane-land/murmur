@@ -20,9 +20,13 @@ final class ProfileStore: ObservableObject {
         static let partnerCity = "murmur.profile.partnerCity"
         static let partnerTZ = "murmur.profile.partnerTimeZone"
         static let avatarColor = "murmur.profile.avatarColor"
+        static let syncEnabled = "murmur.profile.syncEnabled"
     }
 
     @Published var isOnboarded: Bool { didSet { defaults.set(isOnboarded, forKey: Key.onboarded) } }
+    /// Whether CloudKit sync is on. Off by default so the app never touches
+    /// CloudKit until the iCloud capability is set up and the user opts in.
+    @Published var syncEnabled: Bool { didSet { defaults.set(syncEnabled, forKey: Key.syncEnabled) } }
     @Published var userName: String { didSet { defaults.set(userName, forKey: Key.userName) } }
     @Published var partnerName: String { didSet { defaults.set(partnerName, forKey: Key.partnerName) } }
     @Published var partnerEmail: String { didSet { defaults.set(partnerEmail, forKey: Key.partnerEmail) } }
@@ -38,6 +42,7 @@ final class ProfileStore: ObservableObject {
         partnerCity = defaults.string(forKey: Key.partnerCity) ?? PartnerLocation.fallback.city
         partnerTimeZoneID = defaults.string(forKey: Key.partnerTZ) ?? PartnerLocation.fallback.timeZoneID
         avatarColorValue = (defaults.object(forKey: Key.avatarColor) as? Int) ?? Int(MurmurPalette.goldenHour.avatarHex)
+        syncEnabled = defaults.bool(forKey: Key.syncEnabled)
     }
 
     var avatarColor: Color { Color(hex: UInt32(truncatingIfNeeded: avatarColorValue)) }

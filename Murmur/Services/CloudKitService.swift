@@ -22,11 +22,10 @@ import SwiftData
 final class CloudKitService {
     static let shared = CloudKitService()
 
-    /// CloudKit is disabled until two-person pairing is wired up with the iCloud
-    /// + Push capabilities provisioned. Keeping it off lets the app build and
-    /// sign on any device/account, and guarantees CKContainer.default() (which
-    /// requires the iCloud entitlement) is never touched.
-    private let isEnabled = false
+    /// Sync runs only when the user has turned it on in Settings (which they do
+    /// after adding the iCloud capability). Until then CKContainer.default() —
+    /// which needs the iCloud entitlement — is never touched.
+    private var isEnabled: Bool { ProfileStore.shared.syncEnabled }
 
     /// Lazy so it's only created when CloudKit is actually enabled.
     lazy var container = CKContainer.default()
