@@ -14,6 +14,9 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Palette
 
@@ -30,6 +33,8 @@ struct MurmurPalette: Identifiable, Equatable {
     let recordingDot: Color
     /// A representative solid colour for avatars in this style.
     let avatarHex: UInt32
+    /// Alternate app-icon name (nil = the primary icon).
+    let alternateIconName: String?
 
     // Exact values from the design (Murmur.html palette variables).
 
@@ -38,21 +43,24 @@ struct MurmurPalette: Identifiable, Equatable {
         id: "golden", name: "Golden Hour",
         accentStart: Color(hex: 0xE07840), accentMid: Color(hex: 0xDF5A56), accentEnd: Color(hex: 0xDC4070),
         background: Color(hex: 0x140A0B), backgroundWell: Color(hex: 0x0C0506),
-        sheetTint: Color(hex: 0x3A181A), recordingDot: Color(hex: 0xE07840), avatarHex: 0xE07840)
+        sheetTint: Color(hex: 0x3A181A), recordingDot: Color(hex: 0xE07840), avatarHex: 0xE07840,
+        alternateIconName: nil)
 
     /// Aurora — orchid → periwinkle on a cool near-black.
     static let aurora = MurmurPalette(
         id: "aurora", name: "Aurora",
         accentStart: Color(hex: 0xC97DF0), accentMid: Color(hex: 0x9B8DF7), accentEnd: Color(hex: 0x7B9FFF),
         background: Color(hex: 0x0A0A12), backgroundWell: Color(hex: 0x07070D),
-        sheetTint: Color(hex: 0x281C42), recordingDot: Color(hex: 0xC97DF0), avatarHex: 0xC97DF0)
+        sheetTint: Color(hex: 0x281C42), recordingDot: Color(hex: 0xC97DF0), avatarHex: 0xC97DF0,
+        alternateIconName: "AppIcon-Aurora")
 
     /// Deep Ocean — teal → cobalt on a cool near-black.
     static let deepOcean = MurmurPalette(
         id: "ocean", name: "Deep Ocean",
         accentStart: Color(hex: 0x1AD4B8), accentMid: Color(hex: 0x19A2CC), accentEnd: Color(hex: 0x1870E0),
         background: Color(hex: 0x06101A), backgroundWell: Color(hex: 0x040A11),
-        sheetTint: Color(hex: 0x08202E), recordingDot: Color(hex: 0x1AD4B8), avatarHex: 0x1AD4B8)
+        sheetTint: Color(hex: 0x08202E), recordingDot: Color(hex: 0x1AD4B8), avatarHex: 0x1AD4B8,
+        alternateIconName: "AppIcon-DeepOcean")
 
     static let all: [MurmurPalette] = [.goldenHour, .aurora, .deepOcean]
 
@@ -89,6 +97,18 @@ final class Theme: ObservableObject {
 
     func select(_ palette: MurmurPalette) {
         self.palette = palette
+        Self.applyAppIcon(palette.alternateIconName)
+    }
+
+    /// Switches the home-screen app icon to match the style.
+    private static func applyAppIcon(_ name: String?) {
+        #if canImport(UIKit)
+        DispatchQueue.main.async {
+            let app = UIApplication.shared
+            guard app.supportsAlternateIcons, app.alternateIconName != name else { return }
+            app.setAlternateIconName(name)
+        }
+        #endif
     }
 }
 
