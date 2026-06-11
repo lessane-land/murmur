@@ -26,6 +26,8 @@ struct MurmurPalette: Identifiable, Equatable {
     let background: Color
     let backgroundWell: Color
     let recordingDot: Color
+    /// A representative solid colour for avatars in this style.
+    let avatarHex: UInt32
 
     /// Golden Hour — warm candlelight dark with a dusty rose / terracotta
     /// accent. The default; matches CLAUDE.md's stated design language.
@@ -33,21 +35,21 @@ struct MurmurPalette: Identifiable, Equatable {
         id: "golden", name: "Golden Hour",
         accentStart: Color(hex: 0xE0A07E), accentMid: Color(hex: 0xC97D6E), accentEnd: Color(hex: 0xB4655C),
         background: Color(hex: 0x1A1714), backgroundWell: Color(hex: 0x110E0C),
-        recordingDot: Color(hex: 0xD97F6E))
+        recordingDot: Color(hex: 0xD97F6E), avatarHex: 0xC97D6E)
 
     /// Aurora — orchid → periwinkle on a cool near-black.
     static let aurora = MurmurPalette(
         id: "aurora", name: "Aurora",
         accentStart: Color(hex: 0xC97DF0), accentMid: Color(hex: 0x9B8DF7), accentEnd: Color(hex: 0x7B9FFF),
         background: Color(hex: 0x0E0C14), backgroundWell: Color(hex: 0x08070C),
-        recordingDot: Color(hex: 0xFF5B7F))
+        recordingDot: Color(hex: 0xFF5B7F), avatarHex: 0x9B8DF7)
 
     /// Deep Ocean — teal → cobalt on a cool near-black.
     static let deepOcean = MurmurPalette(
         id: "ocean", name: "Deep Ocean",
         accentStart: Color(hex: 0x1AD4B8), accentMid: Color(hex: 0x19A2CC), accentEnd: Color(hex: 0x1870E0),
         background: Color(hex: 0x081016), backgroundWell: Color(hex: 0x040A0F),
-        recordingDot: Color(hex: 0x4FD6C0))
+        recordingDot: Color(hex: 0x4FD6C0), avatarHex: 0x19A2CC)
 
     static let all: [MurmurPalette] = [.goldenHour, .aurora, .deepOcean]
 

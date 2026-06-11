@@ -37,7 +37,7 @@ final class ProfileStore: ObservableObject {
         userName = defaults.string(forKey: Key.userName) ?? ""
         partnerName = defaults.string(forKey: Key.partnerName) ?? ""
         partnerEmail = defaults.string(forKey: Key.partnerEmail) ?? ""
-        avatarColorValue = (defaults.object(forKey: Key.avatarColor) as? Int) ?? Int(AvatarColor.options.first!.hex)
+        avatarColorValue = (defaults.object(forKey: Key.avatarColor) as? Int) ?? Int(MurmurPalette.goldenHour.avatarHex)
     }
 
     /// The chosen avatar colour resolved to a SwiftUI Color.
@@ -50,24 +50,4 @@ final class ProfileStore: ObservableObject {
         self.avatarColorValue = Int(colorHex)
         self.isOnboarded = true
     }
-}
-
-// MARK: - Avatar colour choices
-
-enum AvatarColor {
-    struct Choice: Identifiable, Equatable {
-        let hex: UInt32
-        var id: UInt32 { hex }
-        var color: Color { Color(hex: hex) }
-    }
-
-    /// A small warm-leaning palette — no photos needed for MVP.
-    static let options: [Choice] = [
-        Choice(hex: 0xC97D6E), // dusty rose / terracotta
-        Choice(hex: 0xD9A05B), // amber
-        Choice(hex: 0xC97DF0), // orchid
-        Choice(hex: 0x7B9FFF), // periwinkle
-        Choice(hex: 0x1AD4B8), // teal
-        Choice(hex: 0xE0668A), // rose
-    ]
 }
