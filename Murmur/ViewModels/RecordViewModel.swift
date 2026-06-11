@@ -103,8 +103,14 @@ final class RecordViewModel: ObservableObject {
         Task { [transcription] in
             do {
                 let text = try await transcription.transcribe(fileURL: url)
+                guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    print("Murmur: transcription produced no text")
+                    return
+                }
                 murmur.transcript = text
-                try? context.save()
+                // Save through the murmur's own context to be sure it persists.
+                try? (murmur.modelContext ?? context).save()
+                print("Murmur: transcript saved (\(text.count) chars)")
             } catch {
                 print("Murmur: transcription failed — \(error)")
             }

@@ -85,30 +85,38 @@ struct ContentView: View {
     // MARK: Partner card
 
     private var partnerCard: some View {
-        HStack(spacing: 12) {
-            MurmurAvatar(initial: String(profile.partnerName.first ?? "?").uppercased(), size: 42)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(profile.partnerName)
-                    .font(MurmurFont.rounded(16, weight: .semibold))
-                    .foregroundStyle(MurmurColor.inkPrimary)
-                HStack(spacing: 6) {
-                    Image(systemName: "moon.stars").font(.system(size: 11)).foregroundStyle(MurmurColor.inkTertiary)
-                    Text("across the distance")
-                        .font(MurmurFont.rounded(12.5))
-                        .foregroundStyle(MurmurColor.inkSecondary)
+        // Refresh ~every minute so the partner's local time stays current.
+        TimelineView(.periodic(from: .now, by: 60)) { _ in
+            HStack(spacing: 12) {
+                MurmurAvatar(initial: String(profile.partnerName.first ?? "?").uppercased(),
+                             size: 42, night: profile.partnerIsNight)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(profile.partnerName)
+                        .font(MurmurFont.rounded(16, weight: .semibold))
+                        .foregroundStyle(MurmurColor.inkPrimary)
+                    HStack(spacing: 6) {
+                        Image(systemName: profile.partnerIsNight ? "moon.stars.fill" : "sun.max.fill")
+                            .font(.system(size: 11)).foregroundStyle(MurmurColor.inkTertiary)
+                        Text("\(profile.partnerLocalTime) in \(profile.partnerCity)")
+                            .font(MurmurFont.rounded(12.5))
+                            .foregroundStyle(MurmurColor.inkSecondary)
+                    }
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(profile.partnerOffsetLabel)
+                        .font(MurmurFont.rounded(11, weight: .medium)).tracking(0.5)
+                        .foregroundStyle(MurmurColor.inkTertiary)
+                    Text(profile.partnerStatus)
+                        .font(MurmurFont.serifItalic(13))
+                        .foregroundStyle(MurmurColor.accent)
                 }
             }
-            Spacer()
-            if unplayedCount > 0 {
-                Text("\(unplayedCount) new")
-                    .font(MurmurFont.serifItalic(13))
-                    .foregroundStyle(MurmurColor.accent)
-            }
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(MurmurColor.hairline, lineWidth: 1))
+            .padding(.horizontal, 22).padding(.top, 18)
         }
-        .padding(.horizontal, 14).padding(.vertical, 11)
-        .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(MurmurColor.hairline, lineWidth: 1))
-        .padding(.horizontal, 22).padding(.top, 18)
     }
 
     // MARK: Timeline

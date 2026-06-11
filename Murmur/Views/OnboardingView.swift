@@ -13,6 +13,7 @@ struct OnboardingView: View {
     @State private var name = ""
     @State private var partnerName = ""
     @State private var partnerEmail = ""
+    @State private var location = PartnerLocation.options.first!
 
     private var canContinue: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty &&
@@ -32,6 +33,7 @@ struct OnboardingView: View {
                     field("Partner's name", text: $partnerName, prompt: "Manal")
                     field("Partner's iCloud email", text: $partnerEmail,
                           prompt: "manal@icloud.com", keyboard: .emailAddress)
+                    locationPicker
                 }
                 .padding(24)
                 .padding(.bottom, 120)
@@ -136,6 +138,33 @@ struct OnboardingView: View {
         }
     }
 
+    private var locationPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Where they are").murmurOverline()
+            Menu {
+                ForEach(PartnerLocation.options) { option in
+                    Button(option.city) { location = option }
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "location.fill")
+                        .font(.system(size: 14)).foregroundStyle(MurmurColor.accent)
+                    Text(location.city)
+                        .font(MurmurFont.rounded(17))
+                        .foregroundStyle(MurmurColor.inkPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(MurmurColor.inkTertiary)
+                }
+                .padding(14)
+                .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(MurmurColor.hairline, lineWidth: 1))
+            }
+        }
+    }
+
     // MARK: Continue
 
     private var continueButton: some View {
@@ -143,6 +172,7 @@ struct OnboardingView: View {
             profile.complete(userName: name.trimmingCharacters(in: .whitespaces),
                              partnerName: partnerName.trimmingCharacters(in: .whitespaces),
                              partnerEmail: partnerEmail.trimmingCharacters(in: .whitespaces),
+                             location: location,
                              colorHex: theme.palette.avatarHex)
         } label: {
             Text("Start murmuring")
