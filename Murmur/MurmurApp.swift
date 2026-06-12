@@ -128,6 +128,25 @@ final class SyncBridge: ObservableObject {
         await CloudKitService.shared.uploadPending(in: context)
         let inserted = await CloudKitService.shared.fetchIncoming(into: context, partnerName: partnerName)
         if inserted > 0 { postLocalNotification(partnerName: partnerName) }
+        await transcribeMissing(in: context)
+    }
+
+    /// Transcribes any received murmurs that arrived without a transcript
+    /// (e.g. uploaded before the sender finished transcribing).
+    private func transcribeMissing(in context: ModelContext) async {
+        let predicate = #Predicate<Murmur> { !$0.isOutgoing && $0.transcript == nil }
+        guard let needing = try? context.fetch(FetchDescriptor(predicate: predicate)), !needing.isEmpty else { return }
+        let transcriber = TranscriptionService()
+        for murmur in needing {
+            if let text = try? await transcriber.transcribe(fileURL: murmur.audioFileURL) {
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    murmur.transcript = trimmed
+                    try? context.save()
+                    SyncLog.shared.add("transcribed a received murmur")
+                }
+            }
+        }
     }
 
     private func postLocalNotification(partnerName: String) {

@@ -89,31 +89,31 @@ final class RecordViewModel: ObservableObject {
         context.insert(murmur)
         try? context.save()
 
-        transcribe(murmur, in: context)
-        // Push to CloudKit (best-effort; no-ops if iCloud isn't set up). Run
-        // after transcription has a moment so the first sync can include it.
-        Task { await SyncBridge.shared.sync() }
+        // Transcribe first, then sync — so the murmur travels with its transcript.
+        transcribeThenSync(murmur, in: context)
         return true
     }
 
     // MARK: Transcription
 
-    private func transcribe(_ murmur: Murmur, in context: ModelContext) {
+    private func transcribeThenSync(_ murmur: Murmur, in context: ModelContext) {
         let url = murmur.audioFileURL
         Task { [transcription] in
             do {
                 let text = try await transcription.transcribe(fileURL: url)
-                guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
                     print("Murmur: transcription produced no text")
-                    return
+                } else {
+                    murmur.transcript = trimmed
+                    try? (murmur.modelContext ?? context).save()
+                    print("Murmur: transcript saved (\(trimmed.count) chars)")
                 }
-                murmur.transcript = text
-                // Save through the murmur's own context to be sure it persists.
-                try? (murmur.modelContext ?? context).save()
-                print("Murmur: transcript saved (\(text.count) chars)")
             } catch {
                 print("Murmur: transcription failed — \(error)")
             }
+            // Upload now (includes the transcript if we got one).
+            await SyncBridge.shared.sync()
         }
     }
 }
