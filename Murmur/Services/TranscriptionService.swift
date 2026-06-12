@@ -62,12 +62,17 @@ final class TranscriptionService {
         raw.append(preferred.identifier)
         raw.append(contentsOf: ["en-US", "es-ES"])
 
+        // Pin each language to a region that actually ships an on-device model.
+        // A phone set to English/Spain reports "en-ES", which has no speech
+        // model — normalise it to "en-US" (and any Spanish variant to "es-ES").
+        let canonical = ["en": "en-US", "es": "es-ES"]
+
         var seenLanguage = Set<String>()
         var result: [Locale] = []
         for id in raw {
-            let locale = Locale(identifier: id)
-            let code = locale.language.languageCode?.identifier ?? id
-            if seenLanguage.insert(code).inserted { result.append(locale) }
+            let code = Locale(identifier: id).language.languageCode?.identifier ?? id
+            guard seenLanguage.insert(code).inserted else { continue }
+            result.append(Locale(identifier: canonical[code] ?? id))
         }
         return result
     }
