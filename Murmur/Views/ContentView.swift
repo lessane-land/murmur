@@ -414,9 +414,13 @@ private struct MurmurBubble: View {
                 .font(MurmurFont.rounded(12.5, weight: .medium).monospacedDigit())
                 .foregroundStyle(mine ? MurmurColor.inkSecondary : MurmurColor.inkPrimary)
             Circle().fill(MurmurColor.inkTertiary).frame(width: 3, height: 3)
-            Text(MurmurBubble.timeLabel(for: murmur.createdAt))
-                .font(MurmurFont.serifItalic(13))
-                .foregroundStyle(MurmurColor.inkTertiary)
+            // Aligned to this murmur's minute boundary so "just now" flips to the
+            // clock time exactly one minute after it was sent.
+            TimelineView(.periodic(from: murmur.createdAt, by: 60)) { context in
+                Text(MurmurBubble.timeLabel(for: murmur.createdAt, now: context.date))
+                    .font(MurmurFont.serifItalic(13))
+                    .foregroundStyle(MurmurColor.inkTertiary)
+            }
             if let reaction = murmur.reaction {
                 Image(systemName: reaction)
                     .font(.system(size: 12, weight: .semibold))
@@ -447,9 +451,11 @@ private struct MurmurBubble: View {
         .frame(width: murmur.isDelivered ? 15 : 11, alignment: .leading)
     }
 
-    // Absolute time of day — always correct (the day divider gives the date).
-    static func timeLabel(for date: Date) -> String {
-        date.formatted(.dateTime.hour().minute())
+    // "just now" for the first minute, then the absolute clock time (the day
+    // divider supplies the date). `now` is injected so a TimelineView can flip it.
+    static func timeLabel(for date: Date, now: Date = .now) -> String {
+        if now.timeIntervalSince(date) < 60 { return "just now" }
+        return date.formatted(.dateTime.hour().minute())
     }
 }
 
