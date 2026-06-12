@@ -37,7 +37,7 @@ done. The other person listens when they're ready.
 - Big, obvious record button on the home screen — tap to start, tap to stop
 - No login wall, no friction
 - Waveform visualizer while recording (AVAudioEngine amplitude)
-- Max duration: 3 minutes (keep it intimate, not a podcast)
+- Max duration: 10 minutes (auto-saves at the cap; long enough for a voice letter)
 
 ### 2. Murmur inbox / timeline
 - Chronological list of murmurs (sent + received), newest first

@@ -12,8 +12,9 @@ import Combine
 @MainActor
 final class RecordViewModel: ObservableObject {
 
-    /// Keep murmurs intimate, not podcasts (CLAUDE.md).
-    let maxDuration: TimeInterval = 180
+    /// Upper bound on a single murmur. Long enough for a proper voice letter;
+    /// the record screen auto-saves when it's reached. (~10 MB at this length.)
+    let maxDuration: TimeInterval = 600
 
     @Published var permissionDenied = false
 
