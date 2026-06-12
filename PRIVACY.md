@@ -50,4 +50,4 @@ children.
 
 ## Contact
 
-Questions about your privacy? Email: <!-- TODO: add a support email --> support@murmur.app
+Questions about your privacy? Email:lessane.dev@gmail.com
