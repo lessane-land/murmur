@@ -1,7 +1,8 @@
 //
 //  OnboardingView.swift
 //  First-launch setup (CLAUDE.md MVP #5): your name, your style (one of the
-//  three palettes, applied live), and your partner's name + iCloud email.
+//  three palettes, applied live), and your partner's name. Sync pairing is done
+//  later via the CloudKit share invite in Settings, so no email is needed here.
 //
 
 import SwiftUI
@@ -36,8 +37,6 @@ struct OnboardingView: View {
                     stylePicker
                     contactButton
                     field("Partner's name", text: $partnerName, prompt: "Manal")
-                    field("Partner's iCloud email", text: $partnerEmail,
-                          prompt: "manal@icloud.com", keyboard: .emailAddress)
                     locationPicker
                 }
                 .padding(24)

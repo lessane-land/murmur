@@ -141,7 +141,13 @@ final class CloudKitService {
                                                               resultsLimit: CKQueryOperation.maximumResults)
                 for (_, result) in matches {
                     guard let record = try? result.get() else { continue }
-                    if insertIfNew(record, into: context, partnerName: partnerName) { inserted += 1 }
+                    if upsertIncoming(record, into: context, partnerName: partnerName) { inserted += 1 }
+                    // Acknowledge receipt (write-back) so the sender gets the
+                    // delivered double-tick. We have read-write on the share.
+                    if (record["received"] as? Int ?? 0) != 1 {
+                        record["received"] = 1 as CKRecordValue
+                        _ = try? await sharedDB.save(record)
+                    }
                 }
             }
         } catch {
@@ -150,12 +156,19 @@ final class CloudKitService {
         return inserted
     }
 
-    private func insertIfNew(_ record: CKRecord, into context: ModelContext, partnerName: String) -> Bool {
+    /// Inserts a new incoming murmur, or updates an existing one's reaction.
+    /// Returns true only for a brand-new insert.
+    private func upsertIncoming(_ record: CKRecord, into context: ModelContext, partnerName: String) -> Bool {
         let recordName = record.recordID.recordName
-        // Compare optional-to-optional so the predicate macro type-checks.
         let target: String? = recordName
         let predicate = #Predicate<Murmur> { $0.ckRecordName == target }
-        if let existing = try? context.fetch(FetchDescriptor(predicate: predicate)), !existing.isEmpty {
+        let recordReaction = record["reaction"] as? String
+
+        if let existing = (try? context.fetch(FetchDescriptor(predicate: predicate)))?.first {
+            if existing.reaction != recordReaction {
+                existing.reaction = recordReaction
+                try? context.save()
+            }
             return false
         }
 
@@ -172,10 +185,66 @@ final class CloudKitService {
                             isPlayed: false,
                             isOutgoing: false,
                             ckRecordName: recordName,
-                            isUploaded: true)
+                            isUploaded: true,
+                            reaction: recordReaction,
+                            ckZoneOwner: record.recordID.zoneID.ownerName)
         context.insert(murmur)
         try? context.save()
         return true
+    }
+
+    /// Reads our OWN uploaded murmurs back from the private zone to pick up the
+    /// partner's changes: delivered receipts and reactions they left.
+    func fetchOwnUpdates(in context: ModelContext) async {
+        guard await isAccountAvailable() else { return }
+        do {
+            let query = CKQuery(recordType: Self.recordType, predicate: NSPredicate(value: true))
+            let (matches, _) = try await privateDB.records(matching: query,
+                                                           inZoneWith: zoneID,
+                                                           desiredKeys: nil,
+                                                           resultsLimit: CKQueryOperation.maximumResults)
+            for (_, result) in matches {
+                guard let record = try? result.get() else { continue }
+                let name = record.recordID.recordName
+                let target: String? = name
+                let predicate = #Predicate<Murmur> { $0.ckRecordName == target && $0.isOutgoing }
+                guard let murmur = (try? context.fetch(FetchDescriptor(predicate: predicate)))?.first else { continue }
+                let delivered = (record["received"] as? Int ?? 0) == 1
+                let reaction = record["reaction"] as? String
+                if murmur.isDelivered != delivered || murmur.reaction != reaction {
+                    murmur.isDelivered = delivered
+                    murmur.reaction = reaction
+                    try? context.save()
+                }
+            }
+        } catch {
+            SyncLog.shared.add("own-updates fetch failed — \(error)")
+        }
+    }
+
+    /// Pushes a reaction change to the murmur's CloudKit record (your own record
+    /// in the private DB, or the partner's via the shared DB).
+    func pushReaction(_ murmur: Murmur) async {
+        guard isEnabled, let recordName = murmur.ckRecordName else { return }
+        let database: CKDatabase
+        let zone: CKRecordZone.ID
+        if murmur.isOutgoing {
+            database = privateDB
+            zone = zoneID
+        } else {
+            guard let owner = murmur.ckZoneOwner else { return }
+            database = sharedDB
+            zone = CKRecordZone.ID(zoneName: Self.zoneName, ownerName: owner)
+        }
+        let recordID = CKRecord.ID(recordName: recordName, zoneID: zone)
+        do {
+            let record = try await database.record(for: recordID)
+            record["reaction"] = murmur.reaction as? CKRecordValue
+            _ = try await database.save(record)
+            SyncLog.shared.add("reaction synced")
+        } catch {
+            SyncLog.shared.add("reaction sync failed — \(error)")
+        }
     }
 
     // MARK: Sharing

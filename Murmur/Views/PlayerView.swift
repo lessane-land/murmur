@@ -172,6 +172,8 @@ struct PlayerView: View {
                         murmur.reaction = selected ? nil : symbol
                     }
                     try? modelContext.save()
+                    // Sync the reaction to the partner's CloudKit record.
+                    Task { await CloudKitService.shared.pushReaction(murmur) }
                 } label: {
                     Image(systemName: symbol)
                         .font(.system(size: 19, weight: .semibold))

@@ -423,14 +423,28 @@ private struct MurmurBubble: View {
                     .foregroundStyle(MurmurColor.accent)
             }
             if mine {
-                Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(MurmurColor.accent)
+                // One tick = sent, two ticks = delivered to the partner's device.
+                deliveryTicks
             }
             if unplayed {
                 Circle().fill(MurmurColor.accent).frame(width: 8, height: 8)
                     .shadow(color: MurmurColor.accent, radius: 6)
             }
         }
+    }
+
+    /// Delivery receipt: a single tick once sent, a second overlapping tick once
+    /// the partner's device has pulled it down (isDelivered).
+    private var deliveryTicks: some View {
+        ZStack(alignment: .leading) {
+            Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
+            if murmur.isDelivered {
+                Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
+                    .offset(x: 4)
+            }
+        }
+        .foregroundStyle(MurmurColor.accent)
+        .frame(width: murmur.isDelivered ? 15 : 11, alignment: .leading)
     }
 
     // Absolute time of day — always correct (the day divider gives the date).

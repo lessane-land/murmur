@@ -55,6 +55,14 @@ final class Murmur {
     /// SF Symbol name of a reaction on this murmur (e.g. "heart.fill"), or nil.
     var reaction: String?
 
+    /// True once the partner's device has received this (outgoing) murmur — the
+    /// "delivered" double-tick.
+    var isDelivered: Bool
+
+    /// For incoming murmurs: the owner of the CloudKit zone the record lives in,
+    /// so we can write a reaction back to the partner's shared record.
+    var ckZoneOwner: String?
+
     init(id: UUID = UUID(),
          senderName: String,
          audioFileName: String,
@@ -66,7 +74,9 @@ final class Murmur {
          waveform: [Double]? = nil,
          ckRecordName: String? = nil,
          isUploaded: Bool = false,
-         reaction: String? = nil) {
+         reaction: String? = nil,
+         isDelivered: Bool = false,
+         ckZoneOwner: String? = nil) {
         self.id = id
         self.senderName = senderName
         self.audioFileName = audioFileName
@@ -79,26 +89,14 @@ final class Murmur {
         self.ckRecordName = ckRecordName
         self.isUploaded = isUploaded
         self.reaction = reaction
+        self.isDelivered = isDelivered
+        self.ckZoneOwner = ckZoneOwner
     }
 }
 
 /// Reaction options (SF Symbols only — no emoji, per the design language).
 enum MurmurReaction {
     static let symbols = ["heart.fill", "sparkles", "flame.fill", "star.fill", "hand.thumbsup.fill"]
-}
-
-// MARK: - Versioned schema + migration
-
-/// Version 1 of the data model. Future field changes add a V2 (etc.) and a
-/// migration stage, so updates preserve existing murmurs instead of resetting.
-enum MurmurSchemaV1: VersionedSchema {
-    static var versionIdentifier = Schema.Version(1, 0, 0)
-    static var models: [any PersistentModel.Type] { [Murmur.self] }
-}
-
-enum MurmurMigrationPlan: SchemaMigrationPlan {
-    static var schemas: [any VersionedSchema.Type] { [MurmurSchemaV1.self] }
-    static var stages: [MigrationStage] { [] }
 }
 
 // MARK: - Derived

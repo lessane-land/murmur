@@ -22,8 +22,9 @@ struct MurmurApp: App {
     /// we delete the stale store and recreate it. (Pre-release only; once the
     /// model stabilises this should become a real VersionedSchema migration.)
     static func makeModelContainer() -> ModelContainer {
-        // Versioned schema + migration plan so model changes preserve murmurs.
-        let schema = Schema(versionedSchema: MurmurSchemaV1.self)
+        // Plain schema: SwiftData auto-applies lightweight migrations for
+        // additive changes (new fields), preserving existing murmurs.
+        let schema = Schema([Murmur.self])
         // cloudKitDatabase: .none is important. The app carries an iCloud
         // CloudKit entitlement (for our manual CKShare-based two-person sync in
         // CloudKitService), and SwiftData would otherwise auto-enable its own
@@ -35,18 +36,14 @@ struct MurmurApp: App {
                                                cloudKitDatabase: .none)
 
         do {
-            return try ModelContainer(for: schema,
-                                      migrationPlan: MurmurMigrationPlan.self,
-                                      configurations: [configuration])
+            return try ModelContainer(for: schema, configurations: [configuration])
         } catch {
             // Last resort only: an old/incompatible dev store that predates the
             // versioned schema. Reset once; migrations handle changes after this.
             print("Murmur: model store load failed (\(error)); resetting store.")
             deleteStore(at: configuration.url)
             do {
-                return try ModelContainer(for: schema,
-                                          migrationPlan: MurmurMigrationPlan.self,
-                                          configurations: [configuration])
+                return try ModelContainer(for: schema, configurations: [configuration])
             } catch {
                 print("Murmur: store reset failed (\(error)); falling back to in-memory.")
                 let memory = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -128,6 +125,9 @@ final class SyncBridge: ObservableObject {
         await CloudKitService.shared.uploadPending(in: context)
         let inserted = await CloudKitService.shared.fetchIncoming(into: context, partnerName: partnerName)
         if inserted > 0 { postLocalNotification(partnerName: partnerName) }
+        // Read our own uploaded murmurs back to pick up the partner's delivered
+        // receipts and any reactions they left.
+        await CloudKitService.shared.fetchOwnUpdates(in: context)
         await transcribeMissing(in: context)
     }
 
