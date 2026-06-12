@@ -68,10 +68,13 @@ Murmur can honestly answer **Data Not Collected** — a real selling point.
 - Reasoning to keep in mind if asked: murmurs and transcripts live in the
   user's *own* private iCloud (CloudKit), which the developer cannot access;
   transcription is on-device; there are no analytics or third-party SDKs.
-- **Privacy Policy URL (required):** host `PRIVACY.md` from this repo. Easiest
-  path: enable **GitHub Pages** on the repo (Settings → Pages), then the URL is
-  e.g. `https://lessane-land.github.io/murmur/PRIVACY` — or just link the raw
-  file. Any reachable URL with the policy text is accepted.
+- **Privacy Policy URL (required):** a styled page already exists at
+  `docs/index.html`. To make it live, enable **GitHub Pages** once:
+  repo **Settings → Pages → Source: Deploy from a branch → Branch: `main`,
+  folder: `/docs`** → Save. Your Privacy Policy URL is then:
+  **`https://lessane-land.github.io/murmur/`**
+  (Before publishing, replace the placeholder `support@murmur.app` in
+  `docs/index.html` and `PRIVACY.md` with a real support email.)
 
 ---
 
@@ -130,6 +133,22 @@ run the app in the iPhone 16/17 Pro Max simulator, record a couple of murmurs so
 the timeline looks alive, and use Simulator → File → Save Screen (⌘S). Good
 shots: the timeline with a few murmurs, the player with a transcript, and the
 record screen mid-recording.
+
+### Caption text (the headline you overlay on each screenshot)
+
+Keep them short — a few words, one idea each. Suggested set of five:
+
+1. **Timeline** → "Their voice, whenever you miss it."
+2. **Record screen** → "Tap. Speak. Sent."
+3. **Player + transcript** → "Read it when you can't listen."
+4. **Heart reaction** → "Say it back with a heart."
+5. **Partner time-zone card** → "Always know if they're awake."
+
+Alternate one-liners if you want a different tone:
+- "A quiet place for two."
+- "Async voice, made for distance."
+- "No calls to schedule. Just murmurs."
+- "Private by design — it lives in your iCloud."
 
 ---
 

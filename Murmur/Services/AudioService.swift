@@ -105,7 +105,6 @@ final class AudioService: ObservableObject {
         do {
             try engine.start()
         } catch {
-            print("Murmur: failed to resume recording — \(error)")
             return
         }
         startDate = Date()

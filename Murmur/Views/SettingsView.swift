@@ -11,7 +11,6 @@ import UIKit
 struct SettingsView: View {
     @ObservedObject private var theme = Theme.shared
     @ObservedObject private var profile = ProfileStore.shared
-    @ObservedObject private var syncLog = SyncLog.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @StateObject private var listModel = MurmurListViewModel()
@@ -32,7 +31,6 @@ struct SettingsView: View {
                     youSection
                     partnerSection
                     syncSection
-                    if profile.syncEnabled { syncActivitySection }
                     styleSection
                     murmursSection
                     aboutSection
@@ -108,6 +106,29 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(isPreparingShare)
+
+                Button { Task { await SyncBridge.shared.sync() } } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(MurmurColor.accent)
+                            .frame(width: 44, height: 44)
+                            .background(MurmurColor.surfaceHi, in: Circle())
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Sync now")
+                                .font(MurmurFont.rounded(15, weight: .semibold))
+                                .foregroundStyle(MurmurColor.inkPrimary)
+                            Text("Check for new murmurs")
+                                .font(MurmurFont.rounded(12))
+                                .foregroundStyle(MurmurColor.inkTertiary)
+                        }
+                        Spacer()
+                    }
+                    .padding(14)
+                    .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(MurmurColor.hairline, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
             }
 
             if let shareError {
@@ -228,41 +249,6 @@ struct SettingsView: View {
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(MurmurColor.hairline, lineWidth: 1))
     }
 
-    // MARK: Sync activity (in-app log for TestFlight debugging)
-
-    private var syncActivitySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Sync activity").murmurOverline()
-                Spacer()
-                Button {
-                    Task { await SyncBridge.shared.sync() }
-                } label: {
-                    Text("Sync now").font(MurmurFont.rounded(13, weight: .semibold))
-                        .foregroundStyle(MurmurColor.accent)
-                }
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                if syncLog.lines.isEmpty {
-                    Text("No activity yet — tap Sync now or record a murmur.")
-                        .font(MurmurFont.rounded(12)).foregroundStyle(MurmurColor.inkTertiary)
-                } else {
-                    ForEach(Array(syncLog.lines.suffix(12).enumerated()), id: \.offset) { _, line in
-                        Text(line)
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(line.contains("FAILED") || line.contains("failed")
-                                             ? MurmurColor.recordingDot : MurmurColor.inkSecondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .lineLimit(2)
-                    }
-                }
-            }
-            .padding(12)
-            .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(MurmurColor.hairline, lineWidth: 1))
-        }
-    }
-
     // MARK: Style
 
     private var styleSection: some View {
@@ -372,7 +358,7 @@ struct CloudSharingView: UIViewControllerRepresentable {
 
     final class Coordinator: NSObject, UICloudSharingControllerDelegate {
         func cloudSharingController(_ csc: UICloudSharingController, failedToSaveShareWithError error: Error) {
-            print("Murmur: share save failed — \(error)")
+            // The share sheet surfaces the failure to the user itself.
         }
         func itemTitle(for csc: UICloudSharingController) -> String? { "Our Murmurs" }
         func itemThumbnailData(for csc: UICloudSharingController) -> Data? { nil }

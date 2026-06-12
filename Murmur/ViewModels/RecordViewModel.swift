@@ -60,7 +60,7 @@ final class RecordViewModel: ObservableObject {
         do {
             try audio.startRecording()
         } catch {
-            print("Murmur: failed to start recording — \(error)")
+            // Recording couldn't start; the UI simply stays on the idle state.
         }
     }
 
@@ -103,15 +103,12 @@ final class RecordViewModel: ObservableObject {
             do {
                 let text = try await transcription.transcribe(fileURL: url)
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.isEmpty {
-                    print("Murmur: transcription produced no text")
-                } else {
+                if !trimmed.isEmpty {
                     murmur.transcript = trimmed
                     try? (murmur.modelContext ?? context).save()
-                    print("Murmur: transcript saved (\(trimmed.count) chars)")
                 }
             } catch {
-                print("Murmur: transcription failed — \(error)")
+                // Transcription is best-effort; the murmur is still saved and sent.
             }
             // Upload now (includes the transcript if we got one).
             await SyncBridge.shared.sync()

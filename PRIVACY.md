@@ -50,4 +50,4 @@ children.
 
 ## Contact
 
-Questions about your privacy? Email: lessane.vanesa@gmail.com
+Questions about your privacy? Email: <!-- TODO: add a support email --> support@murmur.app

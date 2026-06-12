@@ -33,10 +33,10 @@ struct OnboardingView: View {
                 VStack(alignment: .leading, spacing: 28) {
                     intro
                     avatarPreview
-                    field("Your name", text: $name, prompt: "Vane")
+                    field("Your name", text: $name, prompt: "Alex")
                     stylePicker
                     contactButton
-                    field("Partner's name", text: $partnerName, prompt: "Manal")
+                    field("Partner's name", text: $partnerName, prompt: "Sam")
                     locationPicker
                 }
                 .padding(24)

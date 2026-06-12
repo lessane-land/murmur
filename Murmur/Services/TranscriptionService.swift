@@ -30,7 +30,6 @@ final class TranscriptionService {
     /// Transcribes the audio at `url`, choosing the best-scoring language.
     func transcribe(fileURL url: URL, preferred: Locale = .current) async throws -> String {
         let authorized = await requestAuthorization()
-        print("Murmur.transcribe: authorized=\(authorized), file=\(url.lastPathComponent)")
         guard authorized else { throw TranscriptionError.notAuthorized }
 
         var best: (text: String, score: Double)?
@@ -40,12 +39,10 @@ final class TranscriptionService {
             guard let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable else { continue }
             do {
                 let (text, score) = try await recognize(url: url, recognizer: recognizer)
-                print("Murmur.transcribe: [\(locale.identifier)] score=\(String(format: "%.2f", score)) text=\"\(text.prefix(40))\"")
                 if !text.isEmpty, best == nil || score > best!.score {
                     best = (text, score)
                 }
             } catch {
-                print("Murmur.transcribe: [\(locale.identifier)] failed — \(error)")
                 lastError = error
             }
         }

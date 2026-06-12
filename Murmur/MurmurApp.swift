@@ -40,12 +40,10 @@ struct MurmurApp: App {
         } catch {
             // Last resort only: an old/incompatible dev store that predates the
             // versioned schema. Reset once; migrations handle changes after this.
-            print("Murmur: model store load failed (\(error)); resetting store.")
             deleteStore(at: configuration.url)
             do {
                 return try ModelContainer(for: schema, configurations: [configuration])
             } catch {
-                print("Murmur: store reset failed (\(error)); falling back to in-memory.")
                 let memory = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
                 return try! ModelContainer(for: schema, configurations: [memory])
             }
@@ -145,7 +143,6 @@ final class SyncBridge: ObservableObject {
                 if !trimmed.isEmpty {
                     murmur.transcript = trimmed
                     try? context.save()
-                    SyncLog.shared.add("transcribed a received murmur")
                 }
             }
         }
@@ -210,7 +207,6 @@ final class SceneDelegate: NSObject, UIWindowSceneDelegate {
 
     private func handleShare(_ metadata: CKShare.Metadata) {
         Task { @MainActor in
-            SyncLog.shared.add("invite tapped — accepting share…")
             await CloudKitService.shared.accept(metadata)
             await SyncBridge.shared.sync()
         }
