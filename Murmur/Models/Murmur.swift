@@ -56,8 +56,9 @@ final class Murmur {
     var reaction: String?
 
     /// True once the partner's device has received this (outgoing) murmur — the
-    /// "delivered" double-tick.
-    var isDelivered: Bool
+    /// "delivered" double-tick. Defaulted so adding it to an existing store is a
+    /// clean lightweight migration (no wipe) for murmurs recorded before it.
+    var isDelivered: Bool = false
 
     /// For incoming murmurs: the owner of the CloudKit zone the record lives in,
     /// so we can write a reaction back to the partner's shared record.
@@ -94,9 +95,10 @@ final class Murmur {
     }
 }
 
-/// Reaction options (SF Symbols only — no emoji, per the design language).
+/// Murmur has a single reaction — a heart (SF Symbol, no emoji per the design
+/// language). Double-tap a murmur to send it; double-tap again to take it back.
 enum MurmurReaction {
-    static let symbols = ["heart.fill", "sparkles", "flame.fill", "star.fill", "hand.thumbsup.fill"]
+    static let heart = "heart.fill"
 }
 
 // MARK: - Derived

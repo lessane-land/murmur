@@ -194,9 +194,13 @@ final class CloudKitService {
     }
 
     /// Reads our OWN uploaded murmurs back from the private zone to pick up the
-    /// partner's changes: delivered receipts and reactions they left.
-    func fetchOwnUpdates(in context: ModelContext) async {
-        guard await isAccountAvailable() else { return }
+    /// partner's changes: delivered receipts and reactions they left. Returns the
+    /// number of murmurs that *newly* gained a reaction, so the caller can raise
+    /// a notification ("they loved your murmur").
+    @discardableResult
+    func fetchOwnUpdates(in context: ModelContext) async -> Int {
+        guard await isAccountAvailable() else { return 0 }
+        var newHearts = 0
         do {
             let query = CKQuery(recordType: Self.recordType, predicate: NSPredicate(value: true))
             let (matches, _) = try await privateDB.records(matching: query,
@@ -207,19 +211,53 @@ final class CloudKitService {
                 guard let record = try? result.get() else { continue }
                 let name = record.recordID.recordName
                 let target: String? = name
-                let predicate = #Predicate<Murmur> { $0.ckRecordName == target && $0.isOutgoing }
-                guard let murmur = (try? context.fetch(FetchDescriptor(predicate: predicate)))?.first else { continue }
+                let predicate = #Predicate<Murmur> { $0.ckRecordName == target }
                 let delivered = (record["received"] as? Int ?? 0) == 1
                 let reaction = record["reaction"] as? String
-                if murmur.isDelivered != delivered || murmur.reaction != reaction {
-                    murmur.isDelivered = delivered
-                    murmur.reaction = reaction
-                    try? context.save()
+
+                if let murmur = (try? context.fetch(FetchDescriptor(predicate: predicate)))?.first {
+                    // A heart that wasn't there before — worth a notification.
+                    if reaction != nil && murmur.reaction != reaction { newHearts += 1 }
+                    if murmur.isDelivered != delivered || murmur.reaction != reaction {
+                        murmur.isDelivered = delivered
+                        murmur.reaction = reaction
+                        try? context.save()
+                    }
+                } else {
+                    // The local store lost this sent murmur (a wipe or reinstall).
+                    // CloudKit is the durable backstop — restore it from the zone.
+                    restoreOwnMurmur(record, delivered: delivered, reaction: reaction, into: context)
                 }
             }
         } catch {
             SyncLog.shared.add("own-updates fetch failed — \(error)")
         }
+        return newHearts
+    }
+
+    /// Recreates one of our own sent murmurs from its private-zone record after
+    /// the local store was lost. The audio rides as a CKAsset we uploaded, so a
+    /// sent murmur can be fully rehydrated — text, audio, reaction and all.
+    private func restoreOwnMurmur(_ record: CKRecord, delivered: Bool, reaction: String?, into context: ModelContext) {
+        guard let asset = record["audio"] as? CKAsset, let assetURL = asset.fileURL else { return }
+        let fileName = "\(UUID().uuidString).m4a"
+        let destination = URL.documentsDirectory.appendingPathComponent(fileName)
+        try? FileManager.default.copyItem(at: assetURL, to: destination)
+
+        let murmur = Murmur(senderName: record["senderName"] as? String ?? ProfileStore.shared.userName,
+                            audioFileName: fileName,
+                            transcript: record["transcript"] as? String,
+                            duration: record["duration"] as? Double ?? 0,
+                            createdAt: record["createdAt"] as? Date ?? .now,
+                            isPlayed: true,
+                            isOutgoing: true,
+                            ckRecordName: record.recordID.recordName,
+                            isUploaded: true,
+                            reaction: reaction,
+                            isDelivered: delivered)
+        context.insert(murmur)
+        try? context.save()
+        SyncLog.shared.add("restored a sent murmur from iCloud")
     }
 
     /// Pushes a reaction change to the murmur's CloudKit record (your own record

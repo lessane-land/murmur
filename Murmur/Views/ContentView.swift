@@ -190,6 +190,7 @@ struct ContentView: View {
                                              mine: murmur.isOutgoing,
                                              bubbleWidth: bubbleWidth,
                                              onDelete: { pendingDelete = murmur })
+                                    .onTapGesture(count: 2) { toggleLove(murmur) }
                                     .onTapGesture { path.append(murmur) }
                                     .padding(.bottom, 14)
                             }
@@ -300,6 +301,19 @@ struct ContentView: View {
     }
 
     private var unplayedCount: Int { murmurs.filter { !$0.isOutgoing && !$0.isPlayed }.count }
+
+    /// Double-tap a murmur to send a heart (or take it back). Syncs to the
+    /// partner's record so their device can surface a notification.
+    private func toggleLove(_ murmur: Murmur) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) {
+            murmur.reaction = (murmur.reaction == MurmurReaction.heart) ? nil : MurmurReaction.heart
+        }
+        try? modelContext.save()
+        Task {
+            await CloudKitService.shared.pushReaction(murmur)
+            await SyncBridge.shared.sync()
+        }
+    }
 
     private static func dayLabel(for day: Date) -> String {
         let calendar = Calendar.current

@@ -164,29 +164,34 @@ struct PlayerView: View {
     // MARK: Reactions
 
     private var reactionBar: some View {
-        HStack(spacing: 12) {
-            ForEach(MurmurReaction.symbols, id: \.self) { symbol in
-                let selected = murmur.reaction == symbol
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                        murmur.reaction = selected ? nil : symbol
-                    }
-                    try? modelContext.save()
-                    // Sync the reaction to the partner's CloudKit record.
-                    Task { await CloudKitService.shared.pushReaction(murmur) }
-                } label: {
-                    Image(systemName: symbol)
-                        .font(.system(size: 19, weight: .semibold))
-                        .foregroundStyle(selected ? MurmurColor.background : MurmurColor.inkSecondary)
-                        .frame(width: 46, height: 46)
-                        .background(selected ? AnyShapeStyle(MurmurColor.accentGradient)
-                                             : AnyShapeStyle(MurmurColor.surface), in: Circle())
-                        .overlay(Circle().strokeBorder(selected ? Color.clear : MurmurColor.hairline, lineWidth: 1))
-                        .scaleEffect(selected ? 1.08 : 1)
-                }
-                .buttonStyle(.plain)
+        let loved = murmur.reaction == MurmurReaction.heart
+        return Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) {
+                murmur.reaction = loved ? nil : MurmurReaction.heart
             }
+            try? modelContext.save()
+            // Sync the heart to the partner's record (and let them know).
+            Task {
+                await CloudKitService.shared.pushReaction(murmur)
+                await SyncBridge.shared.sync()
+            }
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: loved ? "heart.fill" : "heart")
+                    .font(.system(size: 18, weight: .semibold))
+                    .symbolEffect(.bounce, value: loved)
+                Text(loved ? "Loved" : "Tap to love")
+                    .font(MurmurFont.rounded(14.5, weight: .semibold))
+            }
+            .foregroundStyle(loved ? MurmurColor.background : MurmurColor.inkSecondary)
+            .padding(.horizontal, 22)
+            .padding(.vertical, 12)
+            .background(loved ? AnyShapeStyle(MurmurColor.accentGradient)
+                              : AnyShapeStyle(MurmurColor.surface), in: Capsule())
+            .overlay(Capsule().strokeBorder(loved ? Color.clear : MurmurColor.hairline, lineWidth: 1))
+            .shadow(color: loved ? MurmurColor.accentDeep.opacity(0.4) : .clear, radius: 10, y: 4)
         }
+        .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
         .padding(.top, 18)
         .padding(.horizontal, 18)

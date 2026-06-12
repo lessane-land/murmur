@@ -121,13 +121,15 @@ final class SyncBridge: ObservableObject {
         guard let container = modelContainer else { return }
         let context = ModelContext(container)
         let partnerName = ProfileStore.shared.partnerName
+        let who = partnerName.isEmpty ? "Someone" : partnerName
 
         await CloudKitService.shared.uploadPending(in: context)
         let inserted = await CloudKitService.shared.fetchIncoming(into: context, partnerName: partnerName)
-        if inserted > 0 { postLocalNotification(partnerName: partnerName) }
+        if inserted > 0 { postLocalNotification(body: "\(who) left you a murmur") }
         // Read our own uploaded murmurs back to pick up the partner's delivered
-        // receipts and any reactions they left.
-        await CloudKitService.shared.fetchOwnUpdates(in: context)
+        // receipts and any reactions they left, notifying for new hearts.
+        let newHearts = await CloudKitService.shared.fetchOwnUpdates(in: context)
+        if newHearts > 0 { postLocalNotification(body: "\(who) loved your murmur") }
         await transcribeMissing(in: context)
     }
 
@@ -149,10 +151,10 @@ final class SyncBridge: ObservableObject {
         }
     }
 
-    private func postLocalNotification(partnerName: String) {
+    private func postLocalNotification(body: String) {
         let content = UNMutableNotificationContent()
         content.title = "Murmur"
-        content.body = "\(partnerName.isEmpty ? "Someone" : partnerName) left you a murmur"
+        content.body = body
         content.sound = .default
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
