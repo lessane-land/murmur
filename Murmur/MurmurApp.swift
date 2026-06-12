@@ -8,6 +8,7 @@ import SwiftUI
 import SwiftData
 import CloudKit
 import UserNotifications
+import UIKit
 
 @main
 struct MurmurApp: App {
@@ -139,7 +140,7 @@ final class SyncBridge: ObservableObject {
     }
 }
 
-// MARK: - App delegate (remote notifications + share acceptance)
+// MARK: - App delegate (remote notifications + scene routing)
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
@@ -148,9 +149,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         return true
     }
 
-    /// Silent push: a murmur changed in CloudKit — pull it. Uses the
-    /// completion-handler variant so the non-Sendable userInfo isn't carried
-    /// across an actor boundary.
+    /// Silent push: a murmur changed in CloudKit — pull it.
     func application(_ application: UIApplication,
                      didReceiveRemoteNotification userInfo: [AnyHashable: Any],
                      fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
@@ -160,11 +159,38 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         }
     }
 
-    /// The partner tapped our share link — accept it, then sync.
+    /// SwiftUI is scene-based, so CloudKit delivers share acceptance to the
+    /// SCENE — not the app delegate. Route the scene through SceneDelegate.
     func application(_ application: UIApplication,
+                     configurationForConnecting connectingSceneSession: UISceneSession,
+                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let config = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        config.delegateClass = SceneDelegate.self
+        return config
+    }
+}
+
+// MARK: - Scene delegate (CloudKit share acceptance)
+
+final class SceneDelegate: NSObject, UIWindowSceneDelegate {
+    /// Cold start: app launched by tapping the invite link.
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession,
+               options connectionOptions: UIScene.ConnectionOptions) {
+        if let metadata = connectionOptions.cloudKitShareMetadata {
+            handleShare(metadata)
+        }
+    }
+
+    /// Warm: app already running when the invite is tapped.
+    func windowScene(_ windowScene: UIWindowScene,
                      userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata) {
+        handleShare(cloudKitShareMetadata)
+    }
+
+    private func handleShare(_ metadata: CKShare.Metadata) {
         Task { @MainActor in
-            await CloudKitService.shared.accept(cloudKitShareMetadata)
+            SyncLog.shared.add("invite tapped — accepting share…")
+            await CloudKitService.shared.accept(metadata)
             await SyncBridge.shared.sync()
         }
     }

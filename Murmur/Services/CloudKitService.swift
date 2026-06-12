@@ -202,12 +202,20 @@ final class CloudKitService {
         return share
     }
 
-    /// Accepts a share the partner sent us (called from the app delegate).
+    /// Accepts a share the partner sent us (called from the scene delegate).
     func accept(_ metadata: CKShare.Metadata) async {
         guard isEnabled else { return }
         await withCheckedContinuation { continuation in
             let operation = CKAcceptSharesOperation(shareMetadatas: [metadata])
-            operation.acceptSharesResultBlock = { _ in continuation.resume() }
+            operation.acceptSharesResultBlock = { result in
+                let message: String
+                switch result {
+                case .success: message = "share accepted ✓"
+                case .failure(let error): message = "accept FAILED — \(error)"
+                }
+                Task { @MainActor in SyncLog.shared.add(message) }
+                continuation.resume()
+            }
             container.add(operation)
         }
     }
