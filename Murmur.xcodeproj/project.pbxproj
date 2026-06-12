@@ -238,7 +238,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 56HTY9G299;
 				ENABLE_PREVIEWS = YES;
+				CODE_SIGN_ENTITLEMENTS = Murmur/Murmur.entitlements;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CKSharingSupported = YES;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Murmur records your voice messages.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Murmur transcribes murmurs on your device. Audio never leaves your phone.";
@@ -391,7 +393,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 56HTY9G299;
 				ENABLE_PREVIEWS = YES;
+				CODE_SIGN_ENTITLEMENTS = Murmur/Murmur.entitlements;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CKSharingSupported = YES;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Murmur records your voice messages.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Murmur transcribes murmurs on your device. Audio never leaves your phone.";

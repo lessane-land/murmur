@@ -27,8 +27,16 @@ final class CloudKitService {
     /// which needs the iCloud entitlement — is never touched.
     private var isEnabled: Bool { ProfileStore.shared.syncEnabled }
 
+    /// Our CloudKit container. We address it by its explicit identifier rather
+    /// than CKContainer.default(): default() hard-traps (EXC_BREAKPOINT) at
+    /// launch if the iCloud entitlement is missing, whereas the explicit form
+    /// just builds a container whose operations fail softly — so a provisioning
+    /// hiccup degrades to "sync off" instead of crashing the app. Must match the
+    /// id in Murmur.entitlements.
+    static let containerIdentifier = "iCloud.land.lessane.Murmur"
+
     /// Lazy so it's only created when CloudKit is actually enabled.
-    lazy var container = CKContainer.default()
+    lazy var container = CKContainer(identifier: CloudKitService.containerIdentifier)
     private var privateDB: CKDatabase { container.privateCloudDatabase }
     private var sharedDB: CKDatabase { container.sharedCloudDatabase }
 
