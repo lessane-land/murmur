@@ -11,6 +11,7 @@ import UIKit
 struct SettingsView: View {
     @ObservedObject private var theme = Theme.shared
     @ObservedObject private var profile = ProfileStore.shared
+    @ObservedObject private var syncLog = SyncLog.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @StateObject private var listModel = MurmurListViewModel()
@@ -31,6 +32,7 @@ struct SettingsView: View {
                     youSection
                     partnerSection
                     syncSection
+                    if profile.syncEnabled { syncActivitySection }
                     styleSection
                     murmursSection
                     aboutSection
@@ -224,6 +226,41 @@ struct SettingsView: View {
         .padding(14)
         .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(MurmurColor.hairline, lineWidth: 1))
+    }
+
+    // MARK: Sync activity (in-app log for TestFlight debugging)
+
+    private var syncActivitySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Sync activity").murmurOverline()
+                Spacer()
+                Button {
+                    Task { await SyncBridge.shared.sync() }
+                } label: {
+                    Text("Sync now").font(MurmurFont.rounded(13, weight: .semibold))
+                        .foregroundStyle(MurmurColor.accent)
+                }
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                if syncLog.lines.isEmpty {
+                    Text("No activity yet — tap Sync now or record a murmur.")
+                        .font(MurmurFont.rounded(12)).foregroundStyle(MurmurColor.inkTertiary)
+                } else {
+                    ForEach(Array(syncLog.lines.suffix(12).enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(line.contains("FAILED") || line.contains("failed")
+                                             ? MurmurColor.recordingDot : MurmurColor.inkSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .lineLimit(2)
+                    }
+                }
+            }
+            .padding(12)
+            .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(MurmurColor.hairline, lineWidth: 1))
+        }
     }
 
     // MARK: Style

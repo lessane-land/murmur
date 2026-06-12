@@ -18,6 +18,21 @@ import Foundation
 import CloudKit
 import SwiftData
 
+/// A small in-app log so sync activity is visible on TestFlight (where there's
+/// no Xcode console). Shown in Settings → Sync activity.
+@MainActor
+final class SyncLog: ObservableObject {
+    static let shared = SyncLog()
+    @Published private(set) var lines: [String] = []
+
+    func add(_ line: String) {
+        let time = Date().formatted(date: .omitted, time: .standard)
+        lines.append("\(time)  \(line)")
+        if lines.count > 40 { lines.removeFirst(lines.count - 40) }
+        print("Murmur.sync: \(line)")
+    }
+}
+
 @MainActor
 final class CloudKitService {
     static let shared = CloudKitService()
@@ -42,7 +57,7 @@ final class CloudKitService {
 
     func isAccountAvailable() async -> Bool {
         guard isEnabled else {
-            print("Murmur.sync: OFF — turn on Settings → Sync")
+            SyncLog.shared.add("OFF — turn on Settings → Sync")
             return false
         }
         let status = (try? await container.accountStatus()) ?? .couldNotDetermine
@@ -54,7 +69,7 @@ final class CloudKitService {
         case .temporarilyUnavailable: label = "temporarily unavailable"
         default: label = "could not determine"
         }
-        print("Murmur.sync: iCloud status = \(label)")
+        SyncLog.shared.add("iCloud status = \(label)")
         return status == .available
     }
 
@@ -73,7 +88,7 @@ final class CloudKitService {
         guard await isAccountAvailable() else { return }
         let predicate = #Predicate<Murmur> { $0.isOutgoing && !$0.isUploaded }
         guard let pending = try? context.fetch(FetchDescriptor(predicate: predicate)) else { return }
-        print("Murmur.sync: \(pending.count) murmur(s) pending upload")
+        SyncLog.shared.add("\(pending.count) murmur(s) pending upload")
 
         for murmur in pending {
             do {
@@ -81,9 +96,9 @@ final class CloudKitService {
                 murmur.ckRecordName = recordName
                 murmur.isUploaded = true
                 try? context.save()
-                print("Murmur.sync: uploaded \(recordName)")
+                SyncLog.shared.add("uploaded \(recordName)")
             } catch {
-                print("Murmur.sync: upload FAILED — \(error)")
+                SyncLog.shared.add("upload FAILED — \(error)")
             }
         }
     }
@@ -117,6 +132,7 @@ final class CloudKitService {
         var inserted = 0
         do {
             let zones = try await sharedDB.allRecordZones()
+            SyncLog.shared.add("found \(zones.count) shared zone(s) from partner")
             for zone in zones {
                 let query = CKQuery(recordType: Self.recordType, predicate: NSPredicate(value: true))
                 let (matches, _) = try await sharedDB.records(matching: query,
@@ -129,7 +145,7 @@ final class CloudKitService {
                 }
             }
         } catch {
-            print("Murmur: fetch incoming failed — \(error)")
+            SyncLog.shared.add("fetch incoming failed — \(error)")
         }
         return inserted
     }
@@ -216,7 +232,7 @@ final class CloudKitService {
         } catch let error as CKError where error.code == .serverRejectedRequest {
             // Subscription already exists — fine.
         } catch {
-            print("Murmur: subscription registration failed — \(error)")
+            SyncLog.shared.add("subscription registration failed — \(error)")
         }
     }
 }
