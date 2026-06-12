@@ -188,13 +188,9 @@ struct ContentView: View {
                             ForEach(group.items) { murmur in
                                 MurmurBubble(murmur: murmur,
                                              mine: murmur.isOutgoing,
-                                             bubbleWidth: bubbleWidth)
+                                             bubbleWidth: bubbleWidth,
+                                             onDelete: { pendingDelete = murmur })
                                     .onTapGesture { path.append(murmur) }
-                                    .contextMenu {
-                                        Button(role: .destructive) { pendingDelete = murmur } label: {
-                                            Label("Delete", systemImage: "trash")
-                                        }
-                                    }
                                     .padding(.bottom, 14)
                             }
                         }
@@ -326,16 +322,46 @@ private struct MurmurBubble: View {
     let murmur: Murmur
     let mine: Bool
     let bubbleWidth: CGFloat
+    var onDelete: () -> Void = {}
+
+    @State private var dragOffset: CGFloat = 0
 
     private var unplayed: Bool { !mine && !murmur.isPlayed }
     private var progress: Double { (mine || murmur.isPlayed) ? 1 : 0 }
 
     var body: some View {
-        HStack(spacing: 0) {
-            if mine { Spacer(minLength: 0) }
-            bubble
-            if !mine { Spacer(minLength: 0) }
+        ZStack {
+            // Trash revealed as you swipe the bubble left.
+            HStack {
+                Spacer()
+                Image(systemName: "trash.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(MurmurColor.recordingDot)
+                    .opacity(min(1, Double(-dragOffset) / 55))
+                    .padding(.trailing, 14)
+            }
+            HStack(spacing: 0) {
+                if mine { Spacer(minLength: 0) }
+                bubble
+                if !mine { Spacer(minLength: 0) }
+            }
+            .offset(x: dragOffset)
         }
+        .gesture(
+            DragGesture(minimumDistance: 18)
+                .onChanged { value in
+                    if value.translation.width < 0,
+                       abs(value.translation.width) > abs(value.translation.height) {
+                        dragOffset = max(-80, value.translation.width)
+                    }
+                }
+                .onEnded { value in
+                    let delete = value.translation.width < -55 &&
+                                 abs(value.translation.width) > abs(value.translation.height)
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { dragOffset = 0 }
+                    if delete { onDelete() }
+                }
+        )
     }
 
     private var bubble: some View {
@@ -407,12 +433,9 @@ private struct MurmurBubble: View {
         }
     }
 
+    // Absolute time of day — always correct (the day divider gives the date).
     static func timeLabel(for date: Date) -> String {
-        let seconds = Date().timeIntervalSince(date)
-        if seconds < 60 { return "just now" }
-        if seconds < 3600 { return "\(Int(seconds / 60))m ago" }
-        if Calendar.current.isDateInToday(date) { return "\(Int(seconds / 3600))h ago" }
-        return date.formatted(.dateTime.hour().minute())
+        date.formatted(.dateTime.hour().minute())
     }
 }
 
