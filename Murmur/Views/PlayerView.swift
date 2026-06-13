@@ -9,6 +9,7 @@ import SwiftData
 import AVFoundation
 import Translation
 import NaturalLanguage
+import MediaPlayer
 
 struct PlayerView: View {
     let murmur: Murmur
@@ -58,7 +59,10 @@ struct PlayerView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .preferredColorScheme(.dark)
-        .onAppear { MurmurPlaybackController.shared.stop() }  // hand off from inline chat playback
+        .onAppear {
+            MurmurPlaybackController.shared.stop()   // hand off from inline chat playback
+            controller.title = murmur.isOutgoing ? "You" : murmur.senderName
+        }
         .onDisappear { controller.stop() }
         .sheet(isPresented: $showLanguagePicker, onDismiss: startPendingTranslation) {
             TranslationLanguagePicker(selected: translateLanguageCode) { code, name in
@@ -479,6 +483,8 @@ final class AudioPlayerController: NSObject, ObservableObject {
 
     private var player: AVAudioPlayer?
     private var timer: Timer?
+    /// Shown on the lock screen; set by the view before playing.
+    var title = "Murmur"
 
     func play(url: URL) {
         if player == nil {
@@ -490,12 +496,15 @@ final class AudioPlayerController: NSObject, ObservableObject {
         player?.play()
         isPlaying = true
         startTimer()
+        NowPlayingCenter.shared.setActive(self)
+        updateNowPlaying()
     }
 
     func pause() {
         player?.pause()
         isPlaying = false
         timer?.invalidate()
+        updateNowPlaying()
     }
 
     func seek(toFraction fraction: Double, url: URL) {
@@ -503,12 +512,20 @@ final class AudioPlayerController: NSObject, ObservableObject {
         guard let player else { return }
         player.currentTime = fraction * player.duration
         progress = fraction
+        updateNowPlaying()
     }
 
     func stop() {
         player?.stop(); player = nil
         isPlaying = false; progress = 0
         timer?.invalidate(); timer = nil
+        NowPlayingCenter.shared.clear()
+    }
+
+    private func updateNowPlaying() {
+        guard let player else { return }
+        NowPlayingCenter.shared.update(title: title, duration: player.duration,
+                                       elapsed: player.currentTime, isPlaying: isPlaying)
     }
 
     private func configureSession() {
@@ -536,7 +553,27 @@ extension AudioPlayerController: AVAudioPlayerDelegate {
             self.isPlaying = false
             self.progress = 0
             self.timer?.invalidate()
+            NowPlayingCenter.shared.clear()
         }
+    }
+}
+
+extension AudioPlayerController: NowPlayable {
+    func remoteResume() {
+        guard !isPlaying, let player else { return }
+        player.play()
+        isPlaying = true
+        startTimer()
+        NowPlayingCenter.shared.setActive(self)
+        updateNowPlaying()
+    }
+    func remotePause() { if isPlaying { pause() } }
+    func remoteToggle() { if isPlaying { pause() } else { remoteResume() } }
+    func remoteSeek(to time: TimeInterval) {
+        guard let player else { return }
+        player.currentTime = max(0, min(time, player.duration))
+        progress = player.duration > 0 ? player.currentTime / player.duration : 0
+        updateNowPlaying()
     }
 }
 

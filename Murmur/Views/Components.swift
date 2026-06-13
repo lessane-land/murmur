@@ -8,6 +8,7 @@
 import SwiftUI
 import CoreLocation
 import AVFoundation
+import MediaPlayer
 
 // MARK: - Static waveform with progress
 
@@ -332,6 +333,61 @@ struct PulsingRings: View {
     }
 }
 
+// MARK: - Lock-screen "Now Playing"
+
+/// A player that the lock screen / Control Center can drive remotely.
+@MainActor
+protocol NowPlayable: AnyObject {
+    func remoteResume()
+    func remotePause()
+    func remoteToggle()
+    func remoteSeek(to time: TimeInterval)
+}
+
+/// Bridges whichever player is active to the system Now Playing UI (lock screen,
+/// Control Center, headphones). Both the inline chat player and the full-screen
+/// player route through here, so long murmurs can be controlled without
+/// unlocking. Requires the "audio" background mode.
+@MainActor
+final class NowPlayingCenter {
+    static let shared = NowPlayingCenter()
+    private weak var active: (any NowPlayable)?
+    private var configured = false
+
+    func setActive(_ player: any NowPlayable) {
+        active = player
+        configureCommands()
+    }
+
+    func update(title: String, duration: TimeInterval, elapsed: TimeInterval, isPlaying: Bool) {
+        var info: [String: Any] = [:]
+        info[MPMediaItemPropertyTitle] = title
+        info[MPMediaItemPropertyArtist] = "Murmur"
+        info[MPMediaItemPropertyPlaybackDuration] = duration
+        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = elapsed
+        info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    func clear() {
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+    }
+
+    private func configureCommands() {
+        guard !configured else { return }
+        configured = true
+        let center = MPRemoteCommandCenter.shared()
+        center.playCommand.addTarget { [weak self] _ in self?.active?.remoteResume(); return .success }
+        center.pauseCommand.addTarget { [weak self] _ in self?.active?.remotePause(); return .success }
+        center.togglePlayPauseCommand.addTarget { [weak self] _ in self?.active?.remoteToggle(); return .success }
+        center.changePlaybackPositionCommand.addTarget { [weak self] event in
+            guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
+            self?.active?.remoteSeek(to: event.positionTime)
+            return .success
+        }
+    }
+}
+
 // MARK: - Inline playback (play a murmur straight from the chat)
 
 /// One shared audio player for the inbox, so tapping play on a bubble plays it
@@ -347,6 +403,7 @@ final class MurmurPlaybackController: NSObject, ObservableObject {
 
     private var player: AVAudioPlayer?
     private var timer: Timer?
+    private var currentTitle = "Murmur"
 
     func isCurrent(_ murmur: Murmur) -> Bool { currentID == murmur.id }
 
@@ -368,21 +425,26 @@ final class MurmurPlaybackController: NSObject, ObservableObject {
         player.play()
         self.player = player
         currentID = murmur.id
+        currentTitle = murmur.isOutgoing ? "You" : murmur.senderName
         isPlaying = true
         progress = 0
         startTimer()
+        NowPlayingCenter.shared.setActive(self)
+        updateNowPlaying()
     }
 
     private func resume() {
         player?.play()
         isPlaying = true
         startTimer()
+        updateNowPlaying()
     }
 
     func pause() {
         player?.pause()
         isPlaying = false
         timer?.invalidate()
+        updateNowPlaying()
     }
 
     func stop() {
@@ -393,6 +455,13 @@ final class MurmurPlaybackController: NSObject, ObservableObject {
         currentID = nil
         timer?.invalidate()
         timer = nil
+        NowPlayingCenter.shared.clear()
+    }
+
+    private func updateNowPlaying() {
+        guard let player else { return }
+        NowPlayingCenter.shared.update(title: currentTitle, duration: player.duration,
+                                       elapsed: player.currentTime, isPlaying: isPlaying)
     }
 
     private func configureSession() {
@@ -417,5 +486,17 @@ final class MurmurPlaybackController: NSObject, ObservableObject {
 extension MurmurPlaybackController: AVAudioPlayerDelegate {
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor in self.stop() }
+    }
+}
+
+extension MurmurPlaybackController: NowPlayable {
+    func remoteResume() { if !isPlaying { resume() } }
+    func remotePause() { if isPlaying { pause() } }
+    func remoteToggle() { if isPlaying { pause() } else { resume() } }
+    func remoteSeek(to time: TimeInterval) {
+        guard let player else { return }
+        player.currentTime = max(0, min(time, player.duration))
+        progress = player.duration > 0 ? player.currentTime / player.duration : 0
+        updateNowPlaying()
     }
 }
