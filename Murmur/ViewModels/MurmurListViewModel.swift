@@ -10,9 +10,12 @@ import SwiftData
 @MainActor
 final class MurmurListViewModel: ObservableObject {
 
-    /// Deletes a murmur and its audio file from disk.
+    /// Deletes a murmur and its audio files (the recording and any voice reply).
     func delete(_ murmur: Murmur, in context: ModelContext) {
         try? FileManager.default.removeItem(at: murmur.audioFileURL)
+        if let replyURL = murmur.reactionAudioURL {
+            try? FileManager.default.removeItem(at: replyURL)
+        }
         context.delete(murmur)
         try? context.save()
     }

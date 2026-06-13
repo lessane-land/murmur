@@ -322,6 +322,8 @@ struct PlayerView: View {
     private func stopReply() {
         isRecordingReply = false
         guard let url = replyRecorder.stopRecording() else { return }
+        // Drop the previous reply clip so re-records don't orphan files.
+        if let old = murmur.reactionAudioURL { try? FileManager.default.removeItem(at: old) }
         murmur.reactionAudioFileName = url.lastPathComponent
         try? modelContext.save()
         Task {
@@ -439,7 +441,11 @@ struct PlayerView: View {
 
     private func deleteMurmur() {
         controller.stop()
+        replyPlayer.stop()
         try? FileManager.default.removeItem(at: murmur.audioFileURL)
+        if let replyURL = murmur.reactionAudioURL {
+            try? FileManager.default.removeItem(at: replyURL)
+        }
         modelContext.delete(murmur)
         try? modelContext.save()
         dismiss()
