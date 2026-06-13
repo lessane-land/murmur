@@ -8,6 +8,7 @@ import SwiftUI
 import SwiftData
 import AVFoundation
 import Translation
+import NaturalLanguage
 
 struct PlayerView: View {
     let murmur: Murmur
@@ -32,10 +33,9 @@ struct PlayerView: View {
     @State private var isTranslating = false
     @State private var translateError: String?
     @State private var showLanguagePicker = false
-    @State private var warmupConfig: TranslationSession.Configuration?
-
-    /// Pre-download the phone's language pack only once per app run.
-    private static var didWarmUp = false
+    /// The language chosen in the picker, applied once the picker has fully
+    /// dismissed — so the system's download prompt isn't fighting a closing sheet.
+    @State private var pendingTranslation: (code: String, name: String)?
 
     private let transcriber = TranscriptionService()
 
@@ -58,21 +58,18 @@ struct PlayerView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .preferredColorScheme(.dark)
-        .onAppear {
-            MurmurPlaybackController.shared.stop()   // hand off from inline chat playback
-            warmUpDeviceLanguage()
-        }
+        .onAppear { MurmurPlaybackController.shared.stop() }  // hand off from inline chat playback
         .onDisappear { controller.stop() }
-        .sheet(isPresented: $showLanguagePicker) {
+        .sheet(isPresented: $showLanguagePicker, onDismiss: startPendingTranslation) {
             TranslationLanguagePicker(selected: translateLanguageCode) { code, name in
-                startTranslation(to: code, name: name)
+                pendingTranslation = (code, name)
             }
         }
         .translationTask(translationConfig) { session in
             guard let text = murmur.transcript, !text.isEmpty else { return }
             do {
-                // Downloads the language pack on first use, then translates
-                // entirely on-device (works offline afterwards).
+                // Downloads the language pack on first use (shows the system
+                // prompt), then translates on-device — offline afterwards.
                 try await session.prepareTranslation()
                 let response = try await session.translate(text)
                 await MainActor.run {
@@ -81,15 +78,10 @@ struct PlayerView: View {
                 }
             } catch {
                 await MainActor.run {
-                    translateError = "Couldn't translate — the language may still be downloading. Try again in a moment."
+                    translateError = "Couldn't translate this one. Make sure the language finished downloading, then try again."
                     isTranslating = false
                 }
             }
-        }
-        .translationTask(warmupConfig) { session in
-            // Quietly pre-download the phone's language pack so the default
-            // translation is ready and offline.
-            try? await session.prepareTranslation()
         }
     }
 
@@ -432,15 +424,33 @@ struct PlayerView: View {
         .padding(.top, 14)
     }
 
+    /// Runs after the language picker has fully dismissed, so the download
+    /// prompt presents cleanly.
+    private func startPendingTranslation() {
+        guard let pending = pendingTranslation else { return }
+        pendingTranslation = nil
+        startTranslation(to: pending.code, name: pending.name)
+    }
+
     private func startTranslation(to code: String, name: String) {
         translatedText = nil
         translateError = nil
         translatedLanguage = name
         translateLanguageCode = code
         isTranslating = true
+        // Detect the transcript's language so the framework can download the
+        // correct language pair — prepareTranslation needs a concrete source.
+        let source = murmur.transcript.flatMap(detectedLanguage)
         // A fresh configuration each time re-runs the .translationTask.
-        translationConfig = TranslationSession.Configuration(source: nil,
+        translationConfig = TranslationSession.Configuration(source: source,
                                                              target: Locale.Language(identifier: code))
+    }
+
+    private func detectedLanguage(_ text: String) -> Locale.Language? {
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        guard let language = recognizer.dominantLanguage else { return nil }
+        return Locale.Language(identifier: language.rawValue)
     }
 
     private func clearTranslation() {
@@ -450,20 +460,6 @@ struct PlayerView: View {
         translateLanguageCode = nil
         isTranslating = false
         translationConfig = nil
-    }
-
-    /// Pre-downloads the phone's language pack (paired with the most likely other
-    /// language) so the default translation is ready and works offline. Runs at
-    /// most once per app launch, and only if there's something to translate.
-    private func warmUpDeviceLanguage() {
-        guard !Self.didWarmUp,
-              let text = murmur.transcript, !text.isEmpty else { return }
-        Self.didWarmUp = true
-        let device = Locale.current.language.languageCode?.identifier ?? "en"
-        let counterpart = (device == "en") ? "es" : "en"
-        warmupConfig = TranslationSession.Configuration(
-            source: Locale.Language(identifier: counterpart),
-            target: Locale.Language(identifier: device))
     }
 }
 
