@@ -493,6 +493,11 @@ private struct MurmurBubble: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(MurmurColor.accent)
             }
+            if murmur.reactionAudioFileName != nil {
+                Image(systemName: "waveform")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(MurmurColor.accent)
+            }
             if mine {
                 // One tick = sent, two ticks = delivered to the partner's device.
                 deliveryTicks

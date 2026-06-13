@@ -125,9 +125,10 @@ final class SyncBridge: ObservableObject {
         let inserted = await CloudKitService.shared.fetchIncoming(into: context, partnerName: partnerName)
         if inserted > 0 { postLocalNotification(body: "\(who) left you a murmur") }
         // Read our own uploaded murmurs back to pick up the partner's delivered
-        // receipts and any reactions they left, notifying for new hearts.
-        let newHearts = await CloudKitService.shared.fetchOwnUpdates(in: context)
-        if newHearts > 0 { postLocalNotification(body: "\(who) loved your murmur") }
+        // receipts, hearts, and voice replies, notifying for new ones.
+        let updates = await CloudKitService.shared.fetchOwnUpdates(in: context)
+        if updates.hearts > 0 { postLocalNotification(body: "\(who) loved your murmur") }
+        if updates.voiceReplies > 0 { postLocalNotification(body: "\(who) sent you a voice reply") }
         await transcribeMissing(in: context)
     }
 

@@ -55,6 +55,10 @@ final class Murmur {
     /// SF Symbol name of a reaction on this murmur (e.g. "heart.fill"), or nil.
     var reaction: String?
 
+    /// File name of a recorded voice reply to this murmur (a short clip in
+    /// Documents), or nil. Synced alongside the murmur as a CloudKit asset.
+    var reactionAudioFileName: String?
+
     /// True once the partner's device has received this (outgoing) murmur — the
     /// "delivered" double-tick. Defaulted so adding it to an existing store is a
     /// clean lightweight migration (no wipe) for murmurs recorded before it.
@@ -80,6 +84,7 @@ final class Murmur {
          ckRecordName: String? = nil,
          isUploaded: Bool = false,
          reaction: String? = nil,
+         reactionAudioFileName: String? = nil,
          isDelivered: Bool = false,
          ckZoneOwner: String? = nil,
          isFavorite: Bool = false) {
@@ -95,6 +100,7 @@ final class Murmur {
         self.ckRecordName = ckRecordName
         self.isUploaded = isUploaded
         self.reaction = reaction
+        self.reactionAudioFileName = reactionAudioFileName
         self.isDelivered = isDelivered
         self.ckZoneOwner = ckZoneOwner
         self.isFavorite = isFavorite
@@ -113,6 +119,11 @@ extension Murmur {
     /// Resolves the audio file's current location in Documents.
     var audioFileURL: URL {
         URL.documentsDirectory.appendingPathComponent(audioFileName)
+    }
+
+    /// Location of the voice-reply clip, if one exists.
+    var reactionAudioURL: URL? {
+        reactionAudioFileName.map { URL.documentsDirectory.appendingPathComponent($0) }
     }
 
     /// `0:48`, `1:05`, … for display.

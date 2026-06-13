@@ -139,10 +139,13 @@ final class CloudKitService {
         let recordReaction = record["reaction"] as? String
 
         if let existing = (try? context.fetch(FetchDescriptor(predicate: predicate)))?.first {
-            if existing.reaction != recordReaction {
-                existing.reaction = recordReaction
-                try? context.save()
+            var changed = false
+            if existing.reaction != recordReaction { existing.reaction = recordReaction; changed = true }
+            if existing.reactionAudioFileName == nil,
+               let file = downloadedReactionAudio(from: record) {
+                existing.reactionAudioFileName = file; changed = true
             }
+            if changed { try? context.save() }
             return false
         }
 
@@ -161,20 +164,32 @@ final class CloudKitService {
                             ckRecordName: recordName,
                             isUploaded: true,
                             reaction: recordReaction,
+                            reactionAudioFileName: downloadedReactionAudio(from: record),
                             ckZoneOwner: record.recordID.zoneID.ownerName)
         context.insert(murmur)
         try? context.save()
         return true
     }
 
+    /// Copies a voice-reply CKAsset out of a record into Documents, returning the
+    /// new file name (nil if the record has no voice reply).
+    private func downloadedReactionAudio(from record: CKRecord) -> String? {
+        guard let asset = record["reactionAudio"] as? CKAsset, let url = asset.fileURL else { return nil }
+        let fileName = "reply-\(UUID().uuidString).m4a"
+        let destination = URL.documentsDirectory.appendingPathComponent(fileName)
+        try? FileManager.default.copyItem(at: url, to: destination)
+        return FileManager.default.fileExists(atPath: destination.path) ? fileName : nil
+    }
+
     /// Reads our OWN uploaded murmurs back from the private zone to pick up the
-    /// partner's changes: delivered receipts and reactions they left. Returns the
-    /// number of murmurs that *newly* gained a reaction, so the caller can raise
-    /// a notification ("they loved your murmur").
+    /// partner's changes: delivered receipts, hearts, and voice replies they
+    /// left. Returns how many murmurs *newly* gained a heart and a voice reply,
+    /// so the caller can raise the right notification.
     @discardableResult
-    func fetchOwnUpdates(in context: ModelContext) async -> Int {
-        guard await isAccountAvailable() else { return 0 }
+    func fetchOwnUpdates(in context: ModelContext) async -> (hearts: Int, voiceReplies: Int) {
+        guard await isAccountAvailable() else { return (0, 0) }
         var newHearts = 0
+        var newVoiceReplies = 0
         do {
             let query = CKQuery(recordType: Self.recordType, predicate: NSPredicate(value: true))
             let (matches, _) = try await privateDB.records(matching: query,
@@ -197,6 +212,13 @@ final class CloudKitService {
                         murmur.reaction = reaction
                         try? context.save()
                     }
+                    // A voice reply the partner left on our murmur.
+                    if murmur.reactionAudioFileName == nil,
+                       let file = downloadedReactionAudio(from: record) {
+                        murmur.reactionAudioFileName = file
+                        try? context.save()
+                        newVoiceReplies += 1
+                    }
                 } else {
                     // The local store lost this sent murmur (a wipe or reinstall).
                     // CloudKit is the durable backstop — restore it from the zone.
@@ -206,7 +228,7 @@ final class CloudKitService {
         } catch {
             // Best-effort: try again on the next sync.
         }
-        return newHearts
+        return (newHearts, newVoiceReplies)
     }
 
     /// Recreates one of our own sent murmurs from its private-zone record after
@@ -228,6 +250,7 @@ final class CloudKitService {
                             ckRecordName: record.recordID.recordName,
                             isUploaded: true,
                             reaction: reaction,
+                            reactionAudioFileName: downloadedReactionAudio(from: record),
                             isDelivered: delivered)
         context.insert(murmur)
         try? context.save()
@@ -250,6 +273,27 @@ final class CloudKitService {
         let recordID = CKRecord.ID(recordName: recordName, zoneID: zone)
         guard let record = try? await database.record(for: recordID) else { return }
         record["reaction"] = murmur.reaction as? CKRecordValue
+        _ = try? await database.save(record)
+    }
+
+    /// Uploads a recorded voice reply to the murmur's record (private DB for your
+    /// own murmur, the partner's shared zone for theirs).
+    func pushReactionAudio(_ murmur: Murmur) async {
+        guard isEnabled, let recordName = murmur.ckRecordName,
+              let audioURL = murmur.reactionAudioURL else { return }
+        let database: CKDatabase
+        let zone: CKRecordZone.ID
+        if murmur.isOutgoing {
+            database = privateDB
+            zone = zoneID
+        } else {
+            guard let owner = murmur.ckZoneOwner else { return }
+            database = sharedDB
+            zone = CKRecordZone.ID(zoneName: Self.zoneName, ownerName: owner)
+        }
+        let recordID = CKRecord.ID(recordName: recordName, zoneID: zone)
+        guard let record = try? await database.record(for: recordID) else { return }
+        record["reactionAudio"] = CKAsset(fileURL: audioURL)
         _ = try? await database.save(record)
     }
 

@@ -20,6 +20,9 @@ struct PlayerView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @StateObject private var controller = AudioPlayerController()
+    @StateObject private var replyRecorder = AudioService()
+    @StateObject private var replyPlayer = AudioPlayerController()
+    @State private var isRecordingReply = false
     @State private var showTranscript = true
     @State private var isTranscribing = false
     @State private var transcribeError: String?
@@ -53,6 +56,7 @@ struct PlayerView: View {
                 header
                 playerCard
                 reactionBar
+                voiceReactionSection
                 transcript
                 Spacer(minLength: 0)
             }
@@ -63,7 +67,11 @@ struct PlayerView: View {
             MurmurPlaybackController.shared.stop()   // hand off from inline chat playback
             controller.title = murmur.isOutgoing ? "You" : murmur.senderName
         }
-        .onDisappear { controller.stop() }
+        .onDisappear {
+            controller.stop()
+            replyPlayer.stop()
+            if isRecordingReply { replyRecorder.cancelRecording(); isRecordingReply = false }
+        }
         .sheet(isPresented: $showLanguagePicker, onDismiss: startPendingTranslation) {
             TranslationLanguagePicker(selected: translateLanguageCode) { code, name in
                 pendingTranslation = (code, name)
@@ -246,6 +254,86 @@ struct PlayerView: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 18)
         .padding(.horizontal, 18)
+    }
+
+    // MARK: Voice reply
+
+    @ViewBuilder
+    private var voiceReactionSection: some View {
+        HStack(spacing: 12) {
+            if isRecordingReply {
+                Button { stopReply() } label: {
+                    HStack(spacing: 8) {
+                        Circle().fill(MurmurColor.recordingDot).frame(width: 10, height: 10)
+                        Text("Stop").font(MurmurFont.rounded(14, weight: .semibold))
+                    }
+                    .foregroundStyle(MurmurColor.inkPrimary)
+                    .padding(.horizontal, 18).padding(.vertical, 10)
+                    .background(MurmurColor.surface, in: Capsule())
+                    .overlay(Capsule().strokeBorder(MurmurColor.recordingDot.opacity(0.6), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button { startReply() } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "mic.fill").font(.system(size: 14, weight: .semibold))
+                        Text(murmur.reactionAudioFileName == nil ? "Voice reply" : "Re-record")
+                            .font(MurmurFont.rounded(14, weight: .semibold))
+                    }
+                    .foregroundStyle(MurmurColor.accent)
+                    .padding(.horizontal, 18).padding(.vertical, 10)
+                    .background(MurmurColor.surface, in: Capsule())
+                    .overlay(Capsule().strokeBorder(MurmurColor.hairline, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+
+            if murmur.reactionAudioFileName != nil, !isRecordingReply {
+                Button { toggleReplyPlayback() } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: replyPlayer.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .contentTransition(.symbolEffect(.replace))
+                        Text("Reply").font(MurmurFont.rounded(14, weight: .semibold))
+                    }
+                    .foregroundStyle(MurmurColor.background)
+                    .padding(.horizontal, 18).padding(.vertical, 10)
+                    .background(MurmurColor.accentGradient, in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 10)
+        .padding(.horizontal, 18)
+    }
+
+    private func startReply() {
+        controller.pause()
+        MurmurPlaybackController.shared.stop()
+        replyPlayer.stop()
+        Task {
+            guard await replyRecorder.requestPermission() else { return }
+            try? replyRecorder.startRecording()
+            isRecordingReply = true
+        }
+    }
+
+    private func stopReply() {
+        isRecordingReply = false
+        guard let url = replyRecorder.stopRecording() else { return }
+        murmur.reactionAudioFileName = url.lastPathComponent
+        try? modelContext.save()
+        Task {
+            await CloudKitService.shared.pushReactionAudio(murmur)
+            await SyncBridge.shared.sync()
+        }
+    }
+
+    private func toggleReplyPlayback() {
+        guard let url = murmur.reactionAudioURL else { return }
+        if replyPlayer.isPlaying { replyPlayer.pause() }
+        else { replyPlayer.title = "Voice reply"; replyPlayer.play(url: url) }
     }
 
     // MARK: Transcript
