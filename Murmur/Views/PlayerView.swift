@@ -7,6 +7,7 @@
 import SwiftUI
 import SwiftData
 import AVFoundation
+import Translation
 
 struct PlayerView: View {
     let murmur: Murmur
@@ -21,7 +22,23 @@ struct PlayerView: View {
     @State private var isTranscribing = false
     @State private var transcribeError: String?
     @State private var confirmDelete = false
+
+    // On-device translation (optional). Picking a language sets a fresh
+    // configuration, which drives the .translationTask below.
+    @State private var translationConfig: TranslationSession.Configuration?
+    @State private var translatedText: String?
+    @State private var translatedLanguage: String?
+    @State private var isTranslating = false
+    @State private var translateError: String?
+
     private let transcriber = TranscriptionService()
+
+    /// Languages offered for on-device translation (the ones the two of us use,
+    /// plus a few common neighbours).
+    private static let translationTargets: [(name: String, code: String)] = [
+        ("English", "en"), ("Spanish", "es"), ("Arabic", "ar"),
+        ("French", "fr"), ("Italian", "it"), ("German", "de"), ("Portuguese", "pt")
+    ]
 
     private var bars: [Double] { murmur.displayWaveform(barCount: 52) }
     private var partner: String { murmur.isOutgoing ? ProfileStore.shared.partnerName : murmur.senderName }
@@ -43,6 +60,24 @@ struct PlayerView: View {
         .toolbar(.hidden, for: .navigationBar)
         .preferredColorScheme(.dark)
         .onDisappear { controller.stop() }
+        .translationTask(translationConfig) { session in
+            guard let text = murmur.transcript, !text.isEmpty else { return }
+            do {
+                // Downloads the language pack on first use, then translates
+                // entirely on-device (works offline afterwards).
+                try await session.prepareTranslation()
+                let response = try await session.translate(text)
+                await MainActor.run {
+                    translatedText = response.targetText
+                    isTranslating = false
+                }
+            } catch {
+                await MainActor.run {
+                    translateError = "Couldn't translate — the language may still be downloading. Try again in a moment."
+                    isTranslating = false
+                }
+            }
+        }
     }
 
     private var glow: some View {
@@ -225,6 +260,7 @@ struct PlayerView: View {
                         .lineSpacing(5)
                         .foregroundStyle(MurmurColor.inkPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
                     HStack(spacing: 7) {
                         Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(MurmurColor.inkTertiary)
@@ -232,6 +268,7 @@ struct PlayerView: View {
                             .font(MurmurFont.rounded(11.5)).foregroundStyle(MurmurColor.inkTertiary)
                     }
                     .padding(.top, 16)
+                    translateSection
                 } else if isTranscribing {
                     HStack(spacing: 10) {
                         ProgressView().tint(MurmurColor.accent)
@@ -322,6 +359,79 @@ struct PlayerView: View {
             }
             isTranscribing = false
         }
+    }
+
+    // MARK: Translation (on-device, optional)
+
+    @ViewBuilder
+    private var translateSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Menu {
+                ForEach(Self.translationTargets, id: \.code) { target in
+                    Button(target.name) { startTranslation(to: target.code, name: target.name) }
+                }
+                if translatedText != nil || translateError != nil {
+                    Divider()
+                    Button("Hide translation", role: .destructive) { clearTranslation() }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "globe").font(.system(size: 14, weight: .semibold))
+                    Text(translatedText == nil ? "Translate" : "Translate to…")
+                        .font(MurmurFont.rounded(14, weight: .semibold))
+                }
+                .foregroundStyle(MurmurColor.accent)
+            }
+
+            if isTranslating {
+                HStack(spacing: 10) {
+                    ProgressView().tint(MurmurColor.accent)
+                    Text("Translating on device…")
+                        .font(MurmurFont.rounded(13)).foregroundStyle(MurmurColor.inkSecondary)
+                }
+            } else if let translateError {
+                Text(translateError)
+                    .font(MurmurFont.rounded(13)).foregroundStyle(MurmurColor.recordingDot)
+            } else if let translatedText {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(translatedText)
+                        .font(MurmurFont.display(18))
+                        .lineSpacing(5)
+                        .foregroundStyle(MurmurColor.inkPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                    HStack(spacing: 7) {
+                        Image(systemName: "globe").font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(MurmurColor.inkTertiary)
+                        Text("Translated privately on your iPhone\(translatedLanguage.map { " · \($0)" } ?? "")")
+                            .font(MurmurFont.rounded(11.5)).foregroundStyle(MurmurColor.inkTertiary)
+                    }
+                }
+                .padding(14)
+                .background(MurmurColor.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(MurmurColor.hairline, lineWidth: 1))
+            }
+        }
+        .padding(.top, 14)
+    }
+
+    private func startTranslation(to code: String, name: String) {
+        translatedText = nil
+        translateError = nil
+        translatedLanguage = name
+        isTranslating = true
+        // A fresh configuration each time re-runs the .translationTask.
+        translationConfig = TranslationSession.Configuration(source: nil,
+                                                             target: Locale.Language(identifier: code))
+    }
+
+    private func clearTranslation() {
+        translatedText = nil
+        translateError = nil
+        translatedLanguage = nil
+        isTranslating = false
+        translationConfig = nil
     }
 }
 

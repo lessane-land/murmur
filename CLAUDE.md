@@ -48,7 +48,11 @@ done. The other person listens when they're ready.
 ### 3. Auto-transcription
 - On-device transcription after recording using SpeechAnalyzer
 - Transcript visible below the waveform player (collapsible)
-- Supports Spanish and English (Vane speaks both)
+- Supports Spanish and English (the partners speak both)
+- Optional on-device translation (Apple Translation framework): a "Translate"
+  control under the transcript translates it to a chosen language, privately
+  and offline once the language pack is downloaded. Transcript text is also
+  selectable so a single part can be translated via the system callout.
 
 ### 4. Push notifications
 - CloudKit silent push when a new murmur arrives
