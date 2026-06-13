@@ -230,7 +230,7 @@ struct LocationPickerView: View {
                 }
             }
             .background(MurmurColor.background.ignoresSafeArea())
-            .navigationTitle("Where is she?")
+            .navigationTitle("Where are they?")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
