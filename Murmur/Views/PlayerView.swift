@@ -28,17 +28,16 @@ struct PlayerView: View {
     @State private var translationConfig: TranslationSession.Configuration?
     @State private var translatedText: String?
     @State private var translatedLanguage: String?
+    @State private var translateLanguageCode: String?
     @State private var isTranslating = false
     @State private var translateError: String?
+    @State private var showLanguagePicker = false
+    @State private var warmupConfig: TranslationSession.Configuration?
+
+    /// Pre-download the phone's language pack only once per app run.
+    private static var didWarmUp = false
 
     private let transcriber = TranscriptionService()
-
-    /// Languages offered for on-device translation (the ones the two of us use,
-    /// plus a few common neighbours).
-    private static let translationTargets: [(name: String, code: String)] = [
-        ("English", "en"), ("Spanish", "es"), ("Arabic", "ar"),
-        ("French", "fr"), ("Italian", "it"), ("German", "de"), ("Portuguese", "pt")
-    ]
 
     private var bars: [Double] { murmur.displayWaveform(barCount: 52) }
     private var partner: String { murmur.isOutgoing ? ProfileStore.shared.partnerName : murmur.senderName }
@@ -59,7 +58,16 @@ struct PlayerView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .preferredColorScheme(.dark)
+        .onAppear {
+            MurmurPlaybackController.shared.stop()   // hand off from inline chat playback
+            warmUpDeviceLanguage()
+        }
         .onDisappear { controller.stop() }
+        .sheet(isPresented: $showLanguagePicker) {
+            TranslationLanguagePicker(selected: translateLanguageCode) { code, name in
+                startTranslation(to: code, name: name)
+            }
+        }
         .translationTask(translationConfig) { session in
             guard let text = murmur.transcript, !text.isEmpty else { return }
             do {
@@ -77,6 +85,11 @@ struct PlayerView: View {
                     isTranslating = false
                 }
             }
+        }
+        .translationTask(warmupConfig) { session in
+            // Quietly pre-download the phone's language pack so the default
+            // translation is ready and offline.
+            try? await session.prepareTranslation()
         }
     }
 
@@ -366,21 +379,24 @@ struct PlayerView: View {
     @ViewBuilder
     private var translateSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Menu {
-                ForEach(Self.translationTargets, id: \.code) { target in
-                    Button(target.name) { startTranslation(to: target.code, name: target.name) }
+            HStack(spacing: 16) {
+                Button { showLanguagePicker = true } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "globe").font(.system(size: 14, weight: .semibold))
+                        Text(translatedText == nil ? "Translate" : "Translate to…")
+                            .font(MurmurFont.rounded(14, weight: .semibold))
+                    }
+                    .foregroundStyle(MurmurColor.accent)
                 }
+                .buttonStyle(.plain)
+
                 if translatedText != nil || translateError != nil {
-                    Divider()
-                    Button("Hide translation", role: .destructive) { clearTranslation() }
+                    Button { clearTranslation() } label: {
+                        Text("Hide").font(MurmurFont.rounded(14, weight: .semibold))
+                            .foregroundStyle(MurmurColor.inkTertiary)
+                    }
+                    .buttonStyle(.plain)
                 }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "globe").font(.system(size: 14, weight: .semibold))
-                    Text(translatedText == nil ? "Translate" : "Translate to…")
-                        .font(MurmurFont.rounded(14, weight: .semibold))
-                }
-                .foregroundStyle(MurmurColor.accent)
             }
 
             if isTranslating {
@@ -420,6 +436,7 @@ struct PlayerView: View {
         translatedText = nil
         translateError = nil
         translatedLanguage = name
+        translateLanguageCode = code
         isTranslating = true
         // A fresh configuration each time re-runs the .translationTask.
         translationConfig = TranslationSession.Configuration(source: nil,
@@ -430,8 +447,23 @@ struct PlayerView: View {
         translatedText = nil
         translateError = nil
         translatedLanguage = nil
+        translateLanguageCode = nil
         isTranslating = false
         translationConfig = nil
+    }
+
+    /// Pre-downloads the phone's language pack (paired with the most likely other
+    /// language) so the default translation is ready and works offline. Runs at
+    /// most once per app launch, and only if there's something to translate.
+    private func warmUpDeviceLanguage() {
+        guard !Self.didWarmUp,
+              let text = murmur.transcript, !text.isEmpty else { return }
+        Self.didWarmUp = true
+        let device = Locale.current.language.languageCode?.identifier ?? "en"
+        let counterpart = (device == "en") ? "es" : "en"
+        warmupConfig = TranslationSession.Configuration(
+            source: Locale.Language(identifier: counterpart),
+            target: Locale.Language(identifier: device))
     }
 }
 
@@ -502,5 +534,113 @@ extension AudioPlayerController: AVAudioPlayerDelegate {
             self.progress = 0
             self.timer?.invalidate()
         }
+    }
+}
+
+// MARK: - Translation language picker
+
+/// A searchable language chooser styled like the app. The phone's language is
+/// pinned at the top and labelled, with the languages we use suggested next.
+struct TranslationLanguagePicker: View {
+    var selected: String?
+    var onSelect: (_ code: String, _ name: String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var search = ""
+
+    /// Languages Apple's on-device Translation framework supports.
+    private static let allCodes = [
+        "ar", "zh-Hans", "zh-Hant", "nl", "en", "fr", "de", "hi", "id", "it",
+        "ja", "ko", "pl", "pt", "ru", "es", "th", "tr", "uk", "vi"
+    ]
+
+    private var deviceCode: String { Locale.current.language.languageCode?.identifier ?? "en" }
+
+    private func nativeName(_ code: String) -> String {
+        Locale(identifier: code).localizedString(forLanguageCode: code)?.localizedCapitalized ?? code
+    }
+    private func englishName(_ code: String) -> String {
+        Locale(identifier: "en").localizedString(forLanguageCode: code)?.localizedCapitalized ?? code
+    }
+
+    private func matches(_ code: String) -> Bool {
+        guard !search.isEmpty else { return true }
+        let q = search.lowercased()
+        return nativeName(code).lowercased().contains(q)
+            || englishName(code).lowercased().contains(q)
+            || code.lowercased().contains(q)
+    }
+
+    private var suggested: [String] {
+        var seen = Set<String>()
+        return [deviceCode, "en", "es", "ar"].filter {
+            Self.allCodes.contains($0) && seen.insert($0).inserted && matches($0)
+        }
+    }
+    private var others: [String] {
+        Self.allCodes.filter { !suggested.contains($0) && matches($0) }
+            .sorted { englishName($0) < englishName($1) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if !suggested.isEmpty {
+                    Section("Suggested") {
+                        ForEach(suggested, id: \.self) { row($0, isDevice: $0 == deviceCode) }
+                    }
+                }
+                if !others.isEmpty {
+                    Section("All languages") {
+                        ForEach(others, id: \.self) { row($0, isDevice: false) }
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(MurmurColor.background.ignoresSafeArea())
+            .navigationTitle("Translate to")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .searchable(text: $search, prompt: "Search languages")
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func row(_ code: String, isDevice: Bool) -> some View {
+        Button {
+            onSelect(code, nativeName(code))
+            dismiss()
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 8) {
+                        Text(nativeName(code))
+                            .font(MurmurFont.rounded(16, weight: .medium))
+                            .foregroundStyle(MurmurColor.inkPrimary)
+                        if isDevice {
+                            Text("Your language")
+                                .font(MurmurFont.rounded(10, weight: .semibold))
+                                .foregroundStyle(MurmurColor.accent)
+                                .padding(.horizontal, 7).padding(.vertical, 2)
+                                .background(MurmurColor.accent.opacity(0.15), in: Capsule())
+                        }
+                    }
+                    if englishName(code) != nativeName(code) {
+                        Text(englishName(code))
+                            .font(MurmurFont.rounded(12))
+                            .foregroundStyle(MurmurColor.inkTertiary)
+                    }
+                }
+                Spacer()
+                if selected == code {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(MurmurColor.accent)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(MurmurColor.surface)
     }
 }

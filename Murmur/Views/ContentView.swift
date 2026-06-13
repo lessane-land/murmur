@@ -189,7 +189,8 @@ struct ContentView: View {
                                 MurmurBubble(murmur: murmur,
                                              mine: murmur.isOutgoing,
                                              bubbleWidth: bubbleWidth,
-                                             onDelete: { pendingDelete = murmur })
+                                             onDelete: { pendingDelete = murmur },
+                                             onPlayToggle: { togglePlay(murmur) })
                                     .onTapGesture(count: 2) { toggleLove(murmur) }
                                     .onTapGesture { path.append(murmur) }
                                     .padding(.bottom, 14)
@@ -302,6 +303,16 @@ struct ContentView: View {
 
     private var unplayedCount: Int { murmurs.filter { !$0.isOutgoing && !$0.isPlayed }.count }
 
+    /// Play (or pause) a murmur straight from the chat. Marks an incoming murmur
+    /// as played the first time it starts.
+    private func togglePlay(_ murmur: Murmur) {
+        if !murmur.isOutgoing && !murmur.isPlayed {
+            murmur.isPlayed = true
+            try? modelContext.save()
+        }
+        MurmurPlaybackController.shared.toggle(murmur)
+    }
+
     /// Double-tap a murmur to send a heart (or take it back). Syncs to the
     /// partner's record so their device can surface a notification.
     private func toggleLove(_ murmur: Murmur) {
@@ -333,15 +344,21 @@ struct ContentView: View {
 
 private struct MurmurBubble: View {
     @ObservedObject private var theme = Theme.shared
+    @ObservedObject private var playback = MurmurPlaybackController.shared
     let murmur: Murmur
     let mine: Bool
     let bubbleWidth: CGFloat
     var onDelete: () -> Void = {}
+    var onPlayToggle: () -> Void = {}
 
     @State private var dragOffset: CGFloat = 0
 
     private var unplayed: Bool { !mine && !murmur.isPlayed }
-    private var progress: Double { (mine || murmur.isPlayed) ? 1 : 0 }
+    private var isPlayingThis: Bool { playback.isCurrent(murmur) && playback.isPlaying }
+    private var progress: Double {
+        if playback.isCurrent(murmur) { return playback.progress }
+        return (mine || murmur.isPlayed) ? 1 : 0
+    }
 
     var body: some View {
         ZStack {
@@ -408,18 +425,22 @@ private struct MurmurBubble: View {
     }
 
     private var playAffordance: some View {
-        ZStack {
-            Circle()
-                .fill(mine ? AnyShapeStyle(Color.clear) : AnyShapeStyle(MurmurColor.accentGradientSoft))
-                .frame(width: 34, height: 34)
-                .overlay(Circle().strokeBorder(
-                    mine ? MurmurColor.hairlineStrong : MurmurColor.accent.opacity(0.4),
-                    lineWidth: mine ? 1.5 : 1))
-            Image(systemName: "play.fill")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(mine ? MurmurColor.inkSecondary : MurmurColor.accent)
-                .offset(x: 1)
+        Button(action: onPlayToggle) {
+            ZStack {
+                Circle()
+                    .fill(mine ? AnyShapeStyle(Color.clear) : AnyShapeStyle(MurmurColor.accentGradientSoft))
+                    .frame(width: 34, height: 34)
+                    .overlay(Circle().strokeBorder(
+                        mine ? MurmurColor.hairlineStrong : MurmurColor.accent.opacity(0.4),
+                        lineWidth: mine ? 1.5 : 1))
+                Image(systemName: isPlayingThis ? "pause.fill" : "play.fill")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(mine ? MurmurColor.inkSecondary : MurmurColor.accent)
+                    .offset(x: isPlayingThis ? 0 : 1)
+                    .contentTransition(.symbolEffect(.replace))
+            }
         }
+        .buttonStyle(.plain)
     }
 
     private var meta: some View {

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import CoreLocation
+import AVFoundation
 
 // MARK: - Static waveform with progress
 
@@ -328,5 +329,93 @@ struct PulsingRings: View {
                     }
                 }
         }
+    }
+}
+
+// MARK: - Inline playback (play a murmur straight from the chat)
+
+/// One shared audio player for the inbox, so tapping play on a bubble plays it
+/// in place — and starting one murmur stops whatever was playing before. The
+/// full-screen PlayerView uses its own controller; this is just for the list.
+@MainActor
+final class MurmurPlaybackController: NSObject, ObservableObject {
+    static let shared = MurmurPlaybackController()
+
+    @Published private(set) var currentID: UUID?
+    @Published private(set) var isPlaying = false
+    @Published private(set) var progress: Double = 0
+
+    private var player: AVAudioPlayer?
+    private var timer: Timer?
+
+    func isCurrent(_ murmur: Murmur) -> Bool { currentID == murmur.id }
+
+    /// Play / pause / resume the given murmur.
+    func toggle(_ murmur: Murmur) {
+        if currentID == murmur.id {
+            if isPlaying { pause() } else { resume() }
+        } else {
+            start(murmur)
+        }
+    }
+
+    private func start(_ murmur: Murmur) {
+        stop()
+        configureSession()
+        guard let player = try? AVAudioPlayer(contentsOf: murmur.audioFileURL) else { return }
+        player.delegate = self
+        player.prepareToPlay()
+        player.play()
+        self.player = player
+        currentID = murmur.id
+        isPlaying = true
+        progress = 0
+        startTimer()
+    }
+
+    private func resume() {
+        player?.play()
+        isPlaying = true
+        startTimer()
+    }
+
+    func pause() {
+        player?.pause()
+        isPlaying = false
+        timer?.invalidate()
+    }
+
+    func stop() {
+        player?.stop()
+        player = nil
+        isPlaying = false
+        progress = 0
+        currentID = nil
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func configureSession() {
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .default)
+        try? session.setActive(true)
+    }
+
+    private func startTimer() {
+        timer?.invalidate()
+        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, let player = self.player, player.duration > 0 else { return }
+                self.progress = player.currentTime / player.duration
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+}
+
+extension MurmurPlaybackController: AVAudioPlayerDelegate {
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor in self.stop() }
     }
 }
