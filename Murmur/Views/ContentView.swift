@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var pendingDelete: Murmur?
     @State private var searching = false
     @State private var searchText = ""
+    @State private var showingFavorites = false
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -40,7 +41,9 @@ struct ContentView: View {
                         partnerCard
                     }
                     if filteredMurmurs.isEmpty {
-                        searching ? AnyView(noResults) : AnyView(emptyState)
+                        if searching { noResults }
+                        else if showingFavorites { keepsakesEmpty }
+                        else { emptyState }
                     } else {
                         timeline
                     }
@@ -90,6 +93,10 @@ struct ContentView: View {
                 .font(MurmurFont.wordmark(30))
                 .foregroundStyle(MurmurColor.inkPrimary)
             Spacer()
+            GlassButton(systemName: showingFavorites ? "star.fill" : "star", iconSize: 15,
+                        tint: showingFavorites ? MurmurColor.accent : MurmurColor.inkSecondary) {
+                withAnimation(.easeInOut(duration: 0.2)) { showingFavorites.toggle() }
+            }
             GlassButton(systemName: "magnifyingglass", iconSize: 16,
                         tint: MurmurColor.inkSecondary) {
                 withAnimation(.easeInOut(duration: 0.2)) { searching.toggle() }
@@ -252,6 +259,22 @@ struct ContentView: View {
         .frame(maxWidth: .infinity)
     }
 
+    private var keepsakesEmpty: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: "star").font(.system(size: 42, weight: .light))
+                .foregroundStyle(MurmurColor.accent)
+            Text("No keepsakes yet")
+                .font(MurmurFont.serifItalic(22))
+                .foregroundStyle(MurmurColor.inkSecondary)
+            Text("Open a murmur and tap the star to keep it here.")
+                .font(MurmurFont.rounded(14)).foregroundStyle(MurmurColor.inkTertiary)
+                .multilineTextAlignment(.center).padding(.horizontal, 40)
+            Spacer(); Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     // MARK: Record dock
 
     private var recordDock: some View {
@@ -284,12 +307,16 @@ struct ContentView: View {
     private struct DayGroup { let day: Date; let label: String; let items: [Murmur] }
 
     private var filteredMurmurs: [Murmur] {
+        var result = murmurs
+        if showingFavorites { result = result.filter(\.isFavorite) }
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
-        guard searching, !query.isEmpty else { return murmurs }
-        return murmurs.filter {
-            ($0.transcript?.lowercased().contains(query) ?? false) ||
-            $0.senderName.lowercased().contains(query)
+        if searching, !query.isEmpty {
+            result = result.filter {
+                ($0.transcript?.lowercased().contains(query) ?? false) ||
+                $0.senderName.lowercased().contains(query)
+            }
         }
+        return result
     }
 
     private var groupedMurmurs: [DayGroup] {
@@ -455,6 +482,11 @@ private struct MurmurBubble: View {
                 Text(MurmurBubble.timeLabel(for: murmur.createdAt, now: context.date))
                     .font(MurmurFont.serifItalic(13))
                     .foregroundStyle(MurmurColor.inkTertiary)
+            }
+            if murmur.isFavorite {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(MurmurColor.accent)
             }
             if let reaction = murmur.reaction {
                 Image(systemName: reaction)

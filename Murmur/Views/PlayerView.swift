@@ -110,6 +110,13 @@ struct PlayerView: View {
                     .foregroundStyle(MurmurColor.inkTertiary)
             }
             Spacer()
+            GlassButton(systemName: murmur.isFavorite ? "star.fill" : "star",
+                        tint: murmur.isFavorite ? MurmurColor.accent : MurmurColor.inkSecondary) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                    murmur.isFavorite.toggle()
+                }
+                try? modelContext.save()
+            }
             GlassButton(systemName: "trash", tint: MurmurColor.inkSecondary) { confirmDelete = true }
         }
         .padding(.horizontal, 18)

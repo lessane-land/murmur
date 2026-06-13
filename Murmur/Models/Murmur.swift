@@ -64,6 +64,10 @@ final class Murmur {
     /// so we can write a reaction back to the partner's shared record.
     var ckZoneOwner: String?
 
+    /// A "keepsake": personally starred to keep in a favorites archive. Local
+    /// only — each person keeps their own keepsakes, never synced.
+    var isFavorite: Bool = false
+
     init(id: UUID = UUID(),
          senderName: String,
          audioFileName: String,
@@ -77,7 +81,8 @@ final class Murmur {
          isUploaded: Bool = false,
          reaction: String? = nil,
          isDelivered: Bool = false,
-         ckZoneOwner: String? = nil) {
+         ckZoneOwner: String? = nil,
+         isFavorite: Bool = false) {
         self.id = id
         self.senderName = senderName
         self.audioFileName = audioFileName
@@ -92,6 +97,7 @@ final class Murmur {
         self.reaction = reaction
         self.isDelivered = isDelivered
         self.ckZoneOwner = ckZoneOwner
+        self.isFavorite = isFavorite
     }
 }
 
